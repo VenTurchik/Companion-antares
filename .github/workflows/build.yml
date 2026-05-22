@@ -51,7 +51,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: my_app_${{ matrix.platform.target }}
+          name: companion-antares-${{ matrix.platform.target }}
           path: ${{ matrix.platform.artifact }}
           retention-days: 7
 
@@ -104,11 +104,11 @@ jobs:
       - name: Package macOS app
         run: |
           cd build/macos/Build/Products/Release
-          zip -r ../../../../../my_app_macos.zip companion.app
+          zip -r ../../../../../companion-antares-macos.zip companion.app
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: my_app_macos
-          path: my_app_macos.zip
+          name: companion-antares-macos
+          path: companion-antares-macos.zip
           retention-days: 7
