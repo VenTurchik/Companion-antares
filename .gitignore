@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Desktop platform build artifacts
+**/windows/runner/Release/
+**/linux/flutter/ephemeral/
+**/macos/Runner/Flutter/ephemeral/
+**/macos/Pods/

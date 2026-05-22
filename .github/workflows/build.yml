@@ -1,0 +1,71 @@
+name: Build Flutter Desktop
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        platform:
+          - os: windows-latest
+            target: windows
+            config: --enable-windows-desktop
+            build: flutter build windows --release
+            artifact: build/windows/x64/runner/Release
+          - os: ubuntu-latest
+            target: linux
+            config: --enable-linux-desktop
+            build: flutter build linux --release
+            artifact: build/linux/x64/release/bundle
+          - os: macos-latest
+            target: macos
+            config: --enable-macos-desktop
+            build: flutter build macos --release
+            artifact: build/macos/Build/Products/Release
+
+    runs-on: ${{ matrix.platform.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable desktop support
+        run: flutter config ${{ matrix.platform.config }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
+            libx11-dev libxrandr-dev
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build ${{ matrix.platform.target }}
+        run: ${{ matrix.platform.build }}
+
+      - name: Package macOS artifact
+        if: matrix.platform.os == 'macos-latest'
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r ../../../../../my_app_macos.zip Runner.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my_app_${{ matrix.platform.target }}
+          path: |
+            ${{ matrix.platform.artifact }}
+            my_app_macos.zip
+          retention-days: 7
