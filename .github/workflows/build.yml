@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-windows-linux:
     strategy:
       fail-fast: false
       matrix:
@@ -21,27 +21,17 @@ jobs:
             config: --enable-linux-desktop
             build: flutter build linux --release
             artifact: build/linux/x64/release/bundle
-          - os: macos-latest
-            target: macos
-            config: --enable-macos-desktop
-            build: flutter build macos --release
-            artifact: build/macos/Build/Products/Release
-
     runs-on: ${{ matrix.platform.os }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
-
       - name: Enable desktop support
         run: flutter config ${{ matrix.platform.config }}
-
       - name: Install Linux dependencies
         if: matrix.platform.os == 'ubuntu-latest'
         run: |
@@ -50,24 +40,42 @@ jobs:
             clang cmake ninja-build pkg-config \
             libgtk-3-dev liblzma-dev libx11-dev libxrandr-dev \
             libayatana-appindicator3-dev || sudo apt-get install -y libappindicator3-dev
-
       - name: Get dependencies
         run: flutter pub get
-
-      - name: Build ${{ matrix.platform.target }}
+      - name: Build
         run: ${{ matrix.platform.build }}
-
-      - name: Package macOS artifact
-        if: matrix.platform.os == 'macos-latest'
-        run: |
-          cd build/macos/Build/Products/Release
-          zip -r ../../../../../my_app_macos.zip Runner.app
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: my_app_${{ matrix.platform.target }}
-          path: |
-            ${{ matrix.platform.artifact }}
-            my_app_macos.zip
+          path: ${{ matrix.platform.artifact }}
+          retention-days: 7
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Accept Xcode license
+        run: sudo xcodebuild -license accept
+      - name: Enable macOS desktop
+        run: flutter config --enable-macos-desktop
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Build macOS release
+        run: flutter build macos --release --no-codesign -v
+      - name: Package macOS app
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r ../../../../../my_app_macos.zip Runner.app
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my_app_macos
+          path: my_app_macos.zip
           retention-days: 7
