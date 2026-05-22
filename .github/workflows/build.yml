@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-windows-linux:
     strategy:
       fail-fast: false
       matrix:
@@ -14,20 +14,12 @@ jobs:
           - os: windows-latest
             target: windows
             config: --enable-windows-desktop
-            build: flutter build windows --release
             artifact: build/windows/x64/runner/Release
           - os: ubuntu-latest
             target: linux
             config: --enable-linux-desktop
-            build: flutter build linux --release
             artifact: build/linux/x64/release/bundle
-          - os: macos-latest
-            target: macos
-            config: --enable-macos-desktop
-            artifact: build/macos/Build/Products/Release
-
     runs-on: ${{ matrix.platform.os }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,10 +29,6 @@ jobs:
         with:
           channel: stable
           cache: true
-
-      - name: Accept Xcode license
-        if: matrix.platform.os == 'macos-latest'
-        run: sudo xcodebuild -license accept
 
       - name: Enable desktop support
         run: flutter config ${{ matrix.platform.config }}
@@ -57,35 +45,78 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Disable code signing for macOS
-        if: matrix.platform.os == 'macos-latest'
-        run: |
-          cd macos
-          # Отключаем подпись кода
-          sed -i '' 's/CODE_SIGN_IDENTITY = ".*"/CODE_SIGN_IDENTITY = ""/' Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGNING_REQUIRED = YES/CODE_SIGNING_REQUIRED = NO/' Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGNING_ALLOWED = "NO"/CODE_SIGNING_ALLOWED = "YES"/' Runner.xcodeproj/project.pbxproj || true
-          cd ..
-
-      - name: Build macOS release
-        if: matrix.platform.os == 'macos-latest'
-        run: flutter build macos --release
-
-      - name: Build Linux/Windows release
-        if: matrix.platform.os != 'macos-latest'
-        run: ${{ matrix.platform.build }}
-
-      - name: Package macOS artifact
-        if: matrix.platform.os == 'macos-latest'
-        run: |
-          cd build/macos/Build/Products/Release
-          zip -r ../../../../../my_app_macos.zip Runner.app
+      - name: Build
+        run: flutter build ${{ matrix.platform.target }} --release
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: my_app_${{ matrix.platform.target }}
-          path: |
-            ${{ matrix.platform.artifact }}
-            my_app_macos.zip
+          path: ${{ matrix.platform.artifact }}
+          retention-days: 7
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Accept Xcode license
+        run: |
+          sudo xcodebuild -license accept || true
+          sudo xcodebuild -runFirstLaunch
+
+      - name: Enable macOS desktop
+        run: flutter config --enable-macos-desktop
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Clean previous build
+        run: flutter clean
+
+      - name: Build macOS release with diagnostics
+        run: |
+          # Сначала пробуем обычную сборку
+          flutter build macos --release || {
+            echo "===== BUILD FAILED, TRYING TO FIX ====="
+            
+            # Отключаем code signing
+            cd macos
+            sed -i '' 's/CODE_SIGN_IDENTITY = ".*"/CODE_SIGN_IDENTITY = "-"/' Runner.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGNING_REQUIRED = YES/CODE_SIGNING_REQUIRED = NO/' Runner.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGNING_ALLOWED = NO/CODE_SIGNING_ALLOWED = YES/' Runner.xcodeproj/project.pbxproj
+            cd ..
+            
+            # Пробуем снова
+            flutter build macos --release
+          }
+          
+          # Проверяем результат
+          if [ -d "build/macos/Build/Products/Release/Runner.app" ]; then
+            echo "✅ macOS build successful!"
+            ls -la build/macos/Build/Products/Release/
+          else
+            echo "❌ macOS build failed - Runner.app not found"
+            echo "Looking for any .app files..."
+            find build -name "*.app" -type d
+            exit 1
+          fi
+
+      - name: Package macOS app
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r ../../../../../my_app_macos.zip Runner.app
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my_app_macos
+          path: my_app_macos.zip
           retention-days: 7
