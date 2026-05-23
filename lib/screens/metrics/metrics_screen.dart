@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/activity.dart';
-import '../repositories/activity_repository.dart';
-import '../services/work_timer_service.dart';
-import '../services/app_store.dart';
-import '../widgets/metric_chart.dart';
+import '../../models/activity.dart';
+import '../../domain/services/metrics_service.dart';
+import '../../services/work_timer_service.dart';
+import '../../services/app_store.dart';
+import '../../widgets/metric_chart.dart';
 
+/// Экран метрик: статистика активностей, время работы, графики.
 class MetricsScreen extends StatefulWidget {
   const MetricsScreen({super.key});
 
@@ -14,8 +15,7 @@ class MetricsScreen extends StatefulWidget {
 }
 
 class _MetricsScreenState extends State<MetricsScreen> {
-  final _repo = ActivityRepository();
-  List<Activity> _activities = [];
+  Map<ActivityType, int> _counts = {};
   bool _prevRunning = false;
   bool _didInit = false;
 
@@ -29,15 +29,13 @@ class _MetricsScreenState extends State<MetricsScreen> {
   }
 
   Future<void> _load() async {
+    final metricsService = context.read<MetricsService>();
+    final counts = await metricsService.getActivityTypeCounts();
     final store = context.read<AppStore>();
-    final activities = await _repo.getAll();
     await store.refreshMetrics();
     if (!mounted) return;
-    setState(() => _activities = activities);
+    setState(() => _counts = counts);
   }
-
-  int _count(ActivityType type) =>
-      _activities.where((a) => a.type == type).length;
 
   @override
   Widget build(BuildContext context) {
@@ -45,15 +43,11 @@ class _MetricsScreenState extends State<MetricsScreen> {
     final timer = context.watch<WorkTimerService>();
     final store = context.watch<AppStore>();
 
-    if (_prevRunning && !timer.isRunning) {
-      _load();
-    }
+    if (_prevRunning && !timer.isRunning) _load();
     _prevRunning = timer.isRunning;
 
     int displaySeconds = store.todayWorkSeconds;
-    if (timer.isRunning) {
-      displaySeconds += timer.elapsed.inSeconds;
-    }
+    if (timer.isRunning) displaySeconds += timer.elapsed.inSeconds;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Метрики')),
@@ -62,13 +56,17 @@ class _MetricsScreenState extends State<MetricsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _card(theme, 'Создано задач', _count(ActivityType.taskCreated),
+            _card(theme, 'Создано задач',
+                _counts[ActivityType.taskCreated] ?? 0,
                 Icons.add_task, Colors.blue),
             _card(theme, 'Завершено задач',
-                _count(ActivityType.taskCompleted), Icons.check_circle, Colors.green),
-            _card(theme, 'Заметок', _count(ActivityType.noteCreated),
+                _counts[ActivityType.taskCompleted] ?? 0,
+                Icons.check_circle, Colors.green),
+            _card(theme, 'Заметок',
+                _counts[ActivityType.noteCreated] ?? 0,
                 Icons.note, Colors.orange),
-            _card(theme, 'Сниппетов', _count(ActivityType.snippetCreated),
+            _card(theme, 'Сниппетов',
+                _counts[ActivityType.snippetCreated] ?? 0,
                 Icons.code, Colors.purple),
             const SizedBox(height: 8),
             Card(
@@ -110,9 +108,9 @@ class _MetricsScreenState extends State<MetricsScreen> {
                         style: theme.textTheme.titleSmall),
                     const SizedBox(height: 8),
                     MetricChart(
-                        dailyCounts: store.weeklyWork,
-                        color: Colors.green,
-                      ),
+                      dailyCounts: store.weeklyWork,
+                      color: Colors.green,
+                    ),
                   ],
                 ),
               ),
@@ -121,13 +119,6 @@ class _MetricsScreenState extends State<MetricsScreen> {
         ),
       ),
     );
-  }
-
-  String _formatDuration(int seconds) {
-    final h = (seconds ~/ 3600).toString().padLeft(2, '0');
-    final m = ((seconds % 3600) ~/ 60).toString().padLeft(2, '0');
-    final s = (seconds % 60).toString().padLeft(2, '0');
-    return '$h:$m:$s';
   }
 
   Widget _card(ThemeData theme, String label, int count, IconData icon, Color color) {
@@ -140,5 +131,12 @@ class _MetricsScreenState extends State<MetricsScreen> {
             style: theme.textTheme.headlineSmall?.copyWith(color: color)),
       ),
     );
+  }
+
+  String _formatDuration(int seconds) {
+    final h = (seconds ~/ 3600).toString().padLeft(2, '0');
+    final m = ((seconds % 3600) ~/ 60).toString().padLeft(2, '0');
+    final s = (seconds % 60).toString().padLeft(2, '0');
+    return '$h:$m:$s';
   }
 }

@@ -2,7 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
-import 'database/database_helper.dart';
+import 'core/database/database_helper.dart';
+import 'data/repositories/impl/task_repository_impl.dart';
+import 'data/repositories/impl/note_repository_impl.dart';
+import 'data/repositories/impl/snippet_repository_impl.dart';
+import 'data/repositories/impl/work_session_repository_impl.dart';
+import 'data/repositories/impl/activity_repository_impl.dart';
+import 'data/repositories/impl/task_column_repository_impl.dart';
+import 'data/repositories/interfaces/task_repository.dart';
+import 'data/repositories/interfaces/note_repository.dart';
+import 'data/repositories/interfaces/snippet_repository.dart';
+import 'data/repositories/interfaces/work_session_repository.dart';
+import 'data/repositories/interfaces/activity_repository.dart';
+import 'data/repositories/interfaces/task_column_repository.dart';
+import 'domain/services/task_service.dart';
+import 'domain/services/metrics_service.dart';
 import 'services/settings_service.dart';
 import 'services/work_timer_service.dart';
 import 'services/app_store.dart';
@@ -13,25 +27,45 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
   await initializeDateFormatting('ru');
-  await DatabaseHelper().init();
+
+  // === Инициализация базы данных ===
+  final db = DatabaseHelper();
+  await db.init();
+
+  // === Репозитории (с конструкторной DI) ===
+  final TaskRepository taskRepo = TaskRepositoryImpl(db);
+  final NoteRepository noteRepo = NoteRepositoryImpl(db);
+  final SnippetRepository snippetRepo = SnippetRepositoryImpl(db);
+  final WorkSessionRepository workRepo = WorkSessionRepositoryImpl(db);
+  final ActivityRepository activityRepo = ActivityRepositoryImpl(db);
+  final TaskColumnRepository columnRepo = TaskColumnRepositoryImpl(db);
+
+  // === Сервисы ===
+  final taskService = TaskService(taskRepo, noteRepo, snippetRepo, columnRepo);
+  final metricsService = MetricsService(activityRepo, workRepo, taskRepo);
+
+  // === ChangeNotifier-сервисы ===
   final settings = SettingsService();
   await settings.init();
-  final timer = WorkTimerService();
+  final timer = WorkTimerService(workRepo, taskRepo);
   await timer.init();
-  final store = AppStore();
+  final store = AppStore(workRepo, activityRepo);
   await store.init();
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: settings),
         ChangeNotifierProvider.value(value: timer),
         ChangeNotifierProvider.value(value: store),
+        Provider<TaskService>.value(value: taskService),
+        Provider<MetricsService>.value(value: metricsService),
       ],
       child: const CompanionApp(),
     ),
   );
 
-  // инициализация системного трея
+  // === Системный трей ===
   final tray = TrayService();
   tray.onTimerToggle = () {
     if (timer.isRunning) {
@@ -42,6 +76,5 @@ void main() async {
   };
   await tray.init();
 
-  // синхронизация меню трея с состоянием таймера
   timer.addListener(() => tray.updateTimerState(timer.isRunning));
 }

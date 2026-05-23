@@ -3,14 +3,16 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'services/settings_service.dart';
 import 'services/work_timer_service.dart';
-import 'repositories/task_repository.dart';
-import 'screens/dashboard_screen.dart';
-import 'screens/kanban_screen.dart';
-import 'screens/note_list_screen.dart';
-import 'screens/snippet_list_screen.dart';
-import 'screens/metrics_screen.dart';
-import 'screens/settings_screen.dart';
+import 'domain/services/task_service.dart';
+import 'core/constants.dart';
+import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/kanban/kanban_screen.dart';
+import 'screens/notes/note_list_screen.dart';
+import 'screens/snippets/snippet_list_screen.dart';
+import 'screens/metrics/metrics_screen.dart';
+import 'screens/settings/settings_screen.dart';
 
+/// Корневой виджет приложения.
 class CompanionApp extends StatelessWidget {
   const CompanionApp({super.key});
 
@@ -18,7 +20,7 @@ class CompanionApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
     return MaterialApp(
-      title: 'Companion',
+      title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       themeMode: settings.themeMode,
       theme: ThemeData(
@@ -60,6 +62,7 @@ class CompanionApp extends StatelessWidget {
   }
 }
 
+/// Основной каркас с NavigationRail и таймерной панелью.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -69,15 +72,6 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _index = 0;
-
-  List<Widget> get _screens => [
-    DashboardScreen(onGoToTab: (i) => setState(() => _index = i)),
-    const KanbanScreen(),
-    const NoteListScreen(),
-    const SnippetListScreen(),
-    const MetricsScreen(),
-    const SettingsScreen(),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -91,59 +85,71 @@ class _MainShellState extends State<MainShell> {
               _buildTimerPanel(timer, theme),
               Expanded(
                 child: NavigationRail(
-                selectedIndex: _index,
-                onDestinationSelected: (i) => setState(() => _index = i),
-                labelType: NavigationRailLabelType.all,
-                backgroundColor: theme.brightness == Brightness.dark
-                    ? const Color(0xFF1E1E1E)
-                    : Colors.white,
-                indicatorColor: Colors.indigo.shade100,
-                leading: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Icon(Icons.auto_awesome,
-                      color: Colors.indigo.shade400, size: 28),
+                  selectedIndex: _index,
+                  onDestinationSelected: (i) => setState(() => _index = i),
+                  labelType: NavigationRailLabelType.all,
+                  backgroundColor: theme.brightness == Brightness.dark
+                      ? const Color(0xFF1E1E1E)
+                      : Colors.white,
+                  indicatorColor: Colors.indigo.shade100,
+                  leading: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Icon(Icons.auto_awesome,
+                        color: Colors.indigo.shade400, size: 28),
+                  ),
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.dashboard_outlined),
+                      selectedIcon: Icon(Icons.dashboard),
+                      label: Text('Дашборд'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.view_kanban_outlined),
+                      selectedIcon: Icon(Icons.view_kanban),
+                      label: Text('Канбан'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.description_outlined),
+                      selectedIcon: Icon(Icons.description),
+                      label: Text('Заметки'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.code_outlined),
+                      selectedIcon: Icon(Icons.code),
+                      label: Text('Сниппеты'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.bar_chart_outlined),
+                      selectedIcon: Icon(Icons.bar_chart),
+                      label: Text('Метрики'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.settings_outlined),
+                      selectedIcon: Icon(Icons.settings),
+                      label: Text('Настройки'),
+                    ),
+                  ],
                 ),
-                destinations: const [
-                  NavigationRailDestination(
-                    icon: Icon(Icons.dashboard_outlined),
-                    selectedIcon: Icon(Icons.dashboard),
-                    label: Text('Дашборд'),
-                  ),
-                  NavigationRailDestination(
-                    icon: Icon(Icons.view_kanban_outlined),
-                    selectedIcon: Icon(Icons.view_kanban),
-                    label: Text('Канбан'),
-                  ),
-                  NavigationRailDestination(
-                    icon: Icon(Icons.description_outlined),
-                    selectedIcon: Icon(Icons.description),
-                    label: Text('Заметки'),
-                  ),
-                  NavigationRailDestination(
-                    icon: Icon(Icons.code_outlined),
-                    selectedIcon: Icon(Icons.code),
-                    label: Text('Сниппеты'),
-                  ),
-                  NavigationRailDestination(
-                    icon: Icon(Icons.bar_chart_outlined),
-                    selectedIcon: Icon(Icons.bar_chart),
-                    label: Text('Метрики'),
-                  ),
-                  NavigationRailDestination(
-                    icon: Icon(Icons.settings_outlined),
-                    selectedIcon: Icon(Icons.settings),
-                    label: Text('Настройки'),
-                  ),
-                ],
-              ),
               ),
             ],
           ),
           const VerticalDivider(width: 1, thickness: 1),
-          Expanded(child: _screens[_index]),
+          Expanded(child: _screen()),
         ],
       ),
     );
+  }
+
+  Widget _screen() {
+    switch (_index) {
+      case 0: return DashboardScreen(onGoToTab: (i) => setState(() => _index = i));
+      case 1: return const KanbanScreen();
+      case 2: return const NoteListScreen();
+      case 3: return const SnippetListScreen();
+      case 4: return const MetricsScreen();
+      case 5: return const SettingsScreen();
+      default: return const SizedBox();
+    }
   }
 
   Widget _buildTimerPanel(WorkTimerService timer, ThemeData theme) {
@@ -155,9 +161,7 @@ class _MainShellState extends State<MainShell> {
             ? Colors.green.withValues(alpha: 0.1)
             : Colors.grey.withValues(alpha: 0.05),
         border: Border(
-          bottom: BorderSide(
-            color: theme.dividerColor,
-          ),
+          bottom: BorderSide(color: theme.dividerColor),
         ),
       ),
       child: Column(
@@ -178,8 +182,7 @@ class _MainShellState extends State<MainShell> {
             ],
             const SizedBox(height: 4),
             SizedBox(
-              width: 60,
-              height: 28,
+              width: 60, height: 28,
               child: FilledButton.tonal(
                 style: FilledButton.styleFrom(
                     padding: EdgeInsets.zero,
@@ -193,11 +196,9 @@ class _MainShellState extends State<MainShell> {
                 size: 24, color: Colors.green),
             const SizedBox(height: 4),
             SizedBox(
-              width: 60,
-              height: 28,
+              width: 60, height: 28,
               child: FilledButton(
-                style: FilledButton.styleFrom(
-                    padding: EdgeInsets.zero),
+                style: FilledButton.styleFrom(padding: EdgeInsets.zero),
                 onPressed: () => _startTimerWithTask(context, timer),
                 child: const Icon(Icons.play_arrow, size: 18),
               ),
@@ -209,8 +210,8 @@ class _MainShellState extends State<MainShell> {
   }
 
   Future<void> _startTimerWithTask(BuildContext context, WorkTimerService timer) async {
-    final repo = TaskRepository();
-    final tasks = await repo.getAll();
+    final taskService = context.read<TaskService>();
+    final tasks = await taskService.getAllTasks();
     if (!context.mounted) return;
 
     if (tasks.isEmpty) {
@@ -234,7 +235,7 @@ class _MainShellState extends State<MainShell> {
               ),
               ...tasks.map((t) => ListTile(
                 leading: Icon(Icons.task_alt,
-                    color: t.status == 'done'
+                    color: t.status == TaskStatusKeys.done
                         ? Colors.green : Colors.orange),
                 title: Text('${t.taskNumber} ${t.title}',
                     maxLines: 1, overflow: TextOverflow.ellipsis),

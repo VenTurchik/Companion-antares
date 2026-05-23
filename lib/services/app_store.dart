@@ -3,47 +3,53 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
-import '../repositories/activity_repository.dart';
-import '../repositories/work_session_repository.dart';
+import '../core/constants.dart';
+import '../data/repositories/interfaces/work_session_repository.dart';
+import '../data/repositories/interfaces/activity_repository.dart';
 
+/// ChangeNotifier-хранилище пользовательских данных и кеша метрик.
+/// Сохраняется в JSON-файл (companion_store.json) для персистентности.
 class AppStore extends ChangeNotifier {
-  static const _fileName = 'companion_store.json';
+  final WorkSessionRepository _workRepo;
+  final ActivityRepository _activityRepo;
 
-  // --- user data (for future network/sync) ---
+  AppStore(this._workRepo, this._activityRepo);
+
+  // --- Данные пользователя (для будущей сетевой синхронизации) ---
   String userId = const Uuid().v4();
   String? authToken;
   String? refreshToken;
   DateTime? lastSyncAt;
   String? syncServerUrl;
 
-  // --- cached metrics ---
+  // --- Кеш метрик ---
   int todayWorkSeconds = 0;
   Map<String, int> _weeklyWorkCache = {};
   Map<String, int> _dailyActivityCache = {};
 
   Map<DateTime, int> get weeklyWork {
     final result = <DateTime, int>{};
-    _weeklyWorkCache.forEach((key, value) {
-      result[DateTime.parse(key)] = value;
-    });
+    for (final e in _weeklyWorkCache.entries) {
+      result[DateTime.parse(e.key)] = e.value;
+    }
     return result;
   }
 
   Map<DateTime, int> get dailyActivityCounts {
     final result = <DateTime, int>{};
-    _dailyActivityCache.forEach((key, value) {
-      result[DateTime.parse(key)] = value;
-    });
+    for (final e in _dailyActivityCache.entries) {
+      result[DateTime.parse(e.key)] = e.value;
+    }
     return result;
   }
 
   bool _loaded = false;
   bool get isReady => _loaded;
 
-  // --- persistence ---
+  // --- Загрузка из JSON ---
   Future<void> init() async {
     final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/$_fileName');
+    final file = File('${dir.path}/${AppConstants.storeFileName}');
     if (await file.exists()) {
       try {
         final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
@@ -69,7 +75,7 @@ class AppStore extends ChangeNotifier {
 
   Future<void> _persist() async {
     final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/$_fileName');
+    final file = File('${dir.path}/${AppConstants.storeFileName}');
     final data = {
       'userId': userId,
       'authToken': authToken,
@@ -83,7 +89,7 @@ class AppStore extends ChangeNotifier {
     await file.writeAsString(jsonEncode(data));
   }
 
-  // --- user data setters ---
+  // --- Сеттеры ---
   Future<void> setAuth(String token, String refresh) async {
     authToken = token;
     refreshToken = refresh;
@@ -103,41 +109,37 @@ class AppStore extends ChangeNotifier {
     await _persist();
   }
 
-  // --- metrics refresh from DB ---
+  // --- Обновление метрик из БД ---
   Future<void> refreshMetrics() async {
-    final activityRepo = ActivityRepository();
-    final workRepo = WorkSessionRepository();
     final today = DateTime.now();
 
-    // today work seconds
-    final todaySessions = await workRepo.getTodaySessions();
+    // Секунды работы сегодня
+    final todaySessions = await _workRepo.getTodaySessions();
     int secs = 0;
     for (final s in todaySessions) {
       if (s.endTime != null) secs += s.durationSeconds;
     }
-    final active = await workRepo.getActive();
+    final active = await _workRepo.getActive();
     if (active != null) {
       secs += DateTime.now().difference(active.startTime).inSeconds;
     }
     todayWorkSeconds = secs;
 
-    // weekly work
+    // Еженедельная активность (7 дней)
     _weeklyWorkCache = {};
     for (int i = 6; i >= 0; i--) {
       final day = DateTime(today.year, today.month, today.day - i);
-      final ds = day.add(const Duration(days: 1));
-      final periodSecs = await workRepo.getTotalDurationForPeriod(day, ds);
-      _weeklyWorkCache[day.toIso8601String()] = periodSecs;
+      final next = day.add(const Duration(days: 1));
+      _weeklyWorkCache[day.toIso8601String()] =
+          await _workRepo.getTotalDurationForPeriod(day, next);
     }
 
-    // daily activity (14 days)
+    // Ежедневная активность (14 дней)
     _dailyActivityCache = {};
-    final activities = await activityRepo.getAll();
-    final now = DateTime.now();
+    final activities = await _activityRepo.getAll();
     for (int i = 13; i >= 0; i--) {
-      final day = DateTime(now.year, now.month, now.day - i);
-      final key = day.toIso8601String();
-      _dailyActivityCache[key] = 0;
+      final day = DateTime(today.year, today.month, today.day - i);
+      _dailyActivityCache[day.toIso8601String()] = 0;
     }
     for (final a in activities) {
       final day = DateTime(a.timestamp.year, a.timestamp.month, a.timestamp.day);

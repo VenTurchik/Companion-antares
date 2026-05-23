@@ -2,16 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/darcula.dart';
-// ignore: unused_import — регистрирует языки для подсветки
-import 'package:highlight/languages/all.dart';
 import 'package:provider/provider.dart';
+import '../../models/snippet.dart';
+import '../../models/note.dart';
+import '../../domain/services/task_service.dart';
+import '../../services/settings_service.dart';
 
-import '../models/snippet.dart';
-import '../models/note.dart';
-import '../repositories/snippet_repository.dart';
-import '../repositories/note_repository.dart';
-import '../services/settings_service.dart';
-
+/// Экран создания/редактирования сниппета с подсветкой синтаксиса.
 class SnippetEditorScreen extends StatefulWidget {
   final Snippet? snippet;
   const SnippetEditorScreen({super.key, this.snippet});
@@ -21,8 +18,6 @@ class SnippetEditorScreen extends StatefulWidget {
 }
 
 class _SnippetEditorScreenState extends State<SnippetEditorScreen> {
-  final _repo = SnippetRepository();
-  final _noteRepo = NoteRepository();
   late final TextEditingController _titleCtrl;
   late final TextEditingController _codeCtrl;
   late String _language;
@@ -51,7 +46,7 @@ class _SnippetEditorScreenState extends State<SnippetEditorScreen> {
   }
 
   Future<void> _loadNotes() async {
-    final notes = await _noteRepo.getAll();
+    final notes = await context.read<TaskService>().getAllNotes();
     setState(() => _notes = notes);
   }
 
@@ -78,10 +73,11 @@ class _SnippetEditorScreenState extends State<SnippetEditorScreen> {
         .where((e) => e.isNotEmpty)
         .toList();
     snippet.noteId = _noteId;
+    final taskService = context.read<TaskService>();
     if (widget.snippet == null) {
-      await _repo.create(snippet);
+      await taskService.createSnippet(snippet);
     } else {
-      await _repo.update(snippet);
+      await taskService.updateSnippet(snippet);
     }
     if (mounted) Navigator.pop(context);
   }
@@ -160,8 +156,7 @@ class _SnippetEditorScreenState extends State<SnippetEditorScreen> {
                           padding: const EdgeInsets.all(12),
                         ),
                         Positioned(
-                          top: 4,
-                          right: 4,
+                          top: 4, right: 4,
                           child: IconButton(
                             icon: const Icon(Icons.copy, size: 20),
                             onPressed: _copy,

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import '../models/note.dart';
-import '../models/task.dart';
-import '../repositories/note_repository.dart';
-import '../repositories/task_repository.dart';
+import 'package:provider/provider.dart';
+import '../../models/note.dart';
+import '../../models/task.dart';
+import '../../domain/services/task_service.dart';
 
+/// Экран создания/редактирования заметки с поддержкой Markdown.
 class NoteEditorScreen extends StatefulWidget {
   final Note? note;
   const NoteEditorScreen({super.key, this.note});
@@ -14,8 +15,6 @@ class NoteEditorScreen extends StatefulWidget {
 }
 
 class _NoteEditorScreenState extends State<NoteEditorScreen> {
-  final _repo = NoteRepository();
-  final _taskRepo = TaskRepository();
   late final TextEditingController _titleCtrl;
   late final TextEditingController _contentCtrl;
   bool _preview = false;
@@ -32,7 +31,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   }
 
   Future<void> _loadTasks() async {
-    final tasks = await _taskRepo.getAll();
+    final tasks = await context.read<TaskService>().getAllTasks();
     setState(() => _tasks = tasks);
   }
 
@@ -49,10 +48,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     note.title = _titleCtrl.text;
     note.content = _contentCtrl.text;
     note.taskId = _taskId;
+    final taskService = context.read<TaskService>();
     if (widget.note == null) {
-      await _repo.create(note);
+      await taskService.createNote(note);
     } else {
-      await _repo.update(note);
+      await taskService.updateNote(note);
     }
     if (mounted) Navigator.pop(context);
   }

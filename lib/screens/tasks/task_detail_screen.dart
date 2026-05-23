@@ -2,19 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../models/task.dart';
+import '../../models/task_column.dart';
+import '../../models/note.dart';
+import '../../models/snippet.dart';
+import '../../domain/services/task_service.dart';
+import '../../services/work_timer_service.dart';
+import '../../core/constants.dart';
+import '../notes/note_editor_screen.dart';
+import '../snippets/snippet_editor_screen.dart';
 
-import '../models/task.dart';
-import '../models/task_column.dart';
-import '../models/note.dart';
-import '../models/snippet.dart';
-import '../database/database_helper.dart';
-import '../repositories/task_repository.dart';
-import '../repositories/note_repository.dart';
-import '../repositories/snippet_repository.dart';
-import '../services/work_timer_service.dart';
-import 'note_editor_screen.dart';
-import 'snippet_editor_screen.dart';
-
+/// Экран детального просмотра и редактирования задачи.
 class TaskDetailScreen extends StatefulWidget {
   final Task task;
   const TaskDetailScreen({super.key, required this.task});
@@ -24,19 +22,15 @@ class TaskDetailScreen extends StatefulWidget {
 }
 
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
-  final _taskRepo = TaskRepository();
-  final _noteRepo = NoteRepository();
-  final _snippetRepo = SnippetRepository();
-
   late Task _task;
   late TextEditingController _titleCtrl;
   late TextEditingController _descCtrl;
+  List<TaskColumn> _columns = [];
   List<Note> _linkedNotes = [];
   List<Snippet> _linkedSnippets = [];
   List<Note> _allNotes = [];
   List<Snippet> _allSnippets = [];
   bool _editing = false;
-  List<TaskColumn> _columns = [];
   final _dateFormat = DateFormat('dd.MM.yyyy HH:mm');
 
   @override
@@ -45,13 +39,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     _task = widget.task;
     _titleCtrl = TextEditingController(text: _task.title);
     _descCtrl = TextEditingController(text: _task.description ?? '');
-    _loadColumns();
-    _loadLinked();
-  }
-
-  Future<void> _loadColumns() async {
-    final cols = await DatabaseHelper().getTaskColumns();
-    setState(() => _columns = cols);
+    _load();
   }
 
   @override
@@ -61,31 +49,32 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     super.dispose();
   }
 
-  Future<void> _loadLinked() async {
-    final notes = await _noteRepo.getAll();
-    final snippets = await _snippetRepo.getAll();
+  Future<void> _load() async {
+    final taskService = context.read<TaskService>();
+    final columns = await taskService.getColumns();
+    final notes = await taskService.getAllNotes();
+    final snippets = await taskService.getAllSnippets();
     setState(() {
+      _columns = columns;
       _allNotes = notes;
       _allSnippets = snippets;
       _linkedNotes = notes.where((n) => n.taskId == _task.id).toList();
       final linkedIds = _linkedNotes.map((n) => n.id).toSet();
       _linkedSnippets = snippets
-          .where(
-              (s) => s.noteId != null && linkedIds.contains(s.noteId))
+          .where((s) => s.noteId != null && linkedIds.contains(s.noteId))
           .toList();
     });
   }
 
   Future<void> _save() async {
     _task.title = _titleCtrl.text;
-    _task.description =
-        _descCtrl.text.isEmpty ? null : _descCtrl.text;
-    await _taskRepo.update(_task);
+    _task.description = _descCtrl.text.isEmpty ? null : _descCtrl.text;
+    await context.read<TaskService>().updateTask(_task);
     setState(() => _editing = false);
   }
 
   Future<void> _changeStatus(String statusKey) async {
-    if (statusKey == 'inProgress') {
+    if (statusKey == TaskStatusKeys.inProgress) {
       final timer = context.read<WorkTimerService>();
       if (!timer.isRunning) {
         if (mounted) {
@@ -100,8 +89,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       }
     }
     _task.status = statusKey;
-    await _taskRepo.update(_task);
-    _loadLinked();
+    await context.read<TaskService>().updateTask(_task);
+    _load();
   }
 
   Future<void> _deleteTask() async {
@@ -123,7 +112,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       ),
     );
     if (confirm == true) {
-      await _taskRepo.delete(_task.id);
+      await context.read<TaskService>().deleteTask(_task.id);
       if (mounted) Navigator.pop(context);
     }
   }
@@ -136,8 +125,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         title: Text(_task.taskNumber),
         actions: [
           if (_editing)
-            IconButton(
-                icon: const Icon(Icons.save), onPressed: _save)
+            IconButton(icon: const Icon(Icons.save), onPressed: _save)
           else
             IconButton(
                 icon: const Icon(Icons.edit),
@@ -152,11 +140,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         children: [
           GestureDetector(
             onTap: () {
-              Clipboard.setData(
-                  ClipboardData(text: _task.taskNumber));
+              Clipboard.setData(ClipboardData(text: _task.taskNumber));
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Скопировано: TASK-XXXX')),
+                const SnackBar(content: Text('Скопировано: TASK-XXXX')),
               );
             },
             child: Text(_task.taskNumber,
@@ -167,18 +153,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           _editing
               ? TextField(
                   controller: _titleCtrl,
-                  decoration:
-                      const InputDecoration(labelText: 'Заголовок'),
+                  decoration: const InputDecoration(labelText: 'Заголовок'),
                   style: theme.textTheme.headlineSmall)
-              : Text(_task.title,
-                  style: theme.textTheme.headlineSmall),
+              : Text(_task.title, style: theme.textTheme.headlineSmall),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _columns.any((c) => c.statusKey == _task.status)
                 ? _task.status
                 : null,
-            decoration:
-                const InputDecoration(labelText: 'Статус'),
+            decoration: const InputDecoration(labelText: 'Статус'),
             items: _columns.map((c) => DropdownMenuItem(
                 value: c.statusKey,
                 child: Row(
@@ -210,26 +193,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               : Text(_task.description ?? '—',
                   style: theme.textTheme.bodyMedium),
           const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _meta('Создано',
-                      _dateFormat.format(_task.createdAt), theme),
-                  _meta('Изменено',
-                      _dateFormat.format(_task.updatedAt), theme),
-                  if (_task.completedAt != null)
-                    _meta('Завершено',
-                        _dateFormat.format(_task.completedAt!),
-                        theme, Colors.green),
-                  if (_task.commitHash != null)
-                    _meta('Commit', _task.commitHash!, theme),
-                ],
-              ),
-            ),
-          ),
+          _buildMetaCard(theme),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -278,8 +242,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) =>
-                        SnippetEditorScreen(snippet: s))),
+                    builder: (_) => SnippetEditorScreen(snippet: s))),
           )),
           if (_linkedSnippets.isEmpty)
             const Padding(
@@ -291,8 +254,27 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
-  Widget _meta(String label, String value, ThemeData theme,
-      [Color? color]) {
+  Widget _buildMetaCard(ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _meta('Создано', _dateFormat.format(_task.createdAt), theme),
+            _meta('Изменено', _dateFormat.format(_task.updatedAt), theme),
+            if (_task.completedAt != null)
+              _meta('Завершено', _dateFormat.format(_task.completedAt!),
+                  theme, Colors.green),
+            if (_task.commitHash != null)
+              _meta('Commit', _task.commitHash!, theme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _meta(String label, String value, ThemeData theme, [Color? color]) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -302,8 +284,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   ?.copyWith(fontWeight: FontWeight.bold)),
           Expanded(
             child: Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: color)),
+                style: theme.textTheme.bodySmall?.copyWith(color: color)),
           ),
         ],
       ),
@@ -328,16 +309,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         children: available
             .map((n) => SimpleDialogOption(
                   onPressed: () => Navigator.pop(ctx, n),
-                  child: Text(n.title,
-                      overflow: TextOverflow.ellipsis),
+                  child: Text(n.title, overflow: TextOverflow.ellipsis),
                 ))
             .toList(),
       ),
     );
     if (note != null) {
       note.taskId = _task.id;
-      await _noteRepo.update(note);
-      _loadLinked();
+      await context.read<TaskService>().updateNote(note);
+      _load();
     }
   }
 
@@ -345,15 +325,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     if (_linkedNotes.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content:
-                Text('Сначала привяжите заметку к задаче')));
+            content: Text('Сначала привяжите заметку к задаче')));
       }
       return;
     }
     final linkedIds = _linkedNotes.map((n) => n.id).toSet();
     final available = _allSnippets
-        .where((s) =>
-            s.noteId == null || linkedIds.contains(s.noteId))
+        .where((s) => s.noteId == null || linkedIds.contains(s.noteId))
         .toList();
     if (available.isEmpty) {
       if (mounted) {
@@ -369,16 +347,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         children: available
             .map((s) => SimpleDialogOption(
                   onPressed: () => Navigator.pop(ctx, s),
-                  child: Text(s.title,
-                      overflow: TextOverflow.ellipsis),
+                  child: Text(s.title, overflow: TextOverflow.ellipsis),
                 ))
             .toList(),
       ),
     );
     if (snippet != null) {
       snippet.noteId = _linkedNotes.first.id;
-      await _snippetRepo.update(snippet);
-      _loadLinked();
+      await context.read<TaskService>().updateSnippet(snippet);
+      _load();
     }
   }
 }

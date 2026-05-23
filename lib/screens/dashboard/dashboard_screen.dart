@@ -2,22 +2,18 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../models/task.dart';
+import '../../models/work_session.dart';
+import '../../domain/services/task_service.dart';
+import '../../domain/services/metrics_service.dart';
+import '../../services/settings_service.dart';
+import '../../services/work_timer_service.dart';
+import '../../services/app_store.dart';
+import '../../widgets/metric_chart.dart';
+import '../notes/note_editor_screen.dart';
+import '../snippets/snippet_editor_screen.dart';
 
-import '../models/task.dart';
-import '../models/work_session.dart';
-import '../repositories/task_repository.dart';
-import '../repositories/note_repository.dart';
-import '../repositories/snippet_repository.dart';
-import '../repositories/activity_repository.dart';
-import '../repositories/work_session_repository.dart';
-import '../models/activity.dart';
-import '../services/settings_service.dart';
-import '../services/work_timer_service.dart';
-import '../services/app_store.dart';
-import '../widgets/metric_chart.dart';
-import 'note_editor_screen.dart';
-import 'snippet_editor_screen.dart';
-
+/// Экран дашборда: сводка задач, заметок, сниппетов, таймер, графики.
 class DashboardScreen extends StatefulWidget {
   final void Function(int index)? onGoToTab;
   const DashboardScreen({super.key, this.onGoToTab});
@@ -27,12 +23,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final _taskRepo = TaskRepository();
-  final _noteRepo = NoteRepository();
-  final _snippetRepo = SnippetRepository();
-  final _activityRepo = ActivityRepository();
-  final _workRepo = WorkSessionRepository();
-
   int _inProgress = 0;
   int _doneCount = 0;
   int _totalTasks = 0;
@@ -41,7 +31,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _totalSnippets = 0;
   bool _prevRunning = false;
   bool _didInit = false;
-  Map<DateTime, int> _weekly = {};
 
   @override
   void didChangeDependencies() {
@@ -54,61 +43,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _load() async {
     final store = context.read<AppStore>();
-    final tasks = await _taskRepo.getAll();
-    final notes = await _noteRepo.getAll();
-    final snippets = await _snippetRepo.getAll();
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final todayEnd = todayStart.add(const Duration(days: 1));
-    final todayActivities =
-        await _activityRepo.getBetween(todayStart, todayEnd);
-    final weekStart = todayStart.subtract(const Duration(days: 6));
-    final weekEnd = todayEnd;
-    final weekActivities =
-        await _activityRepo.getBetween(weekStart, weekEnd);
+    final taskService = context.read<TaskService>();
+    final metricsService = context.read<MetricsService>();
+
+    final tasks = await taskService.getAllTasks();
+    final notes = await taskService.getAllNotes();
+    final snippets = await taskService.getAllSnippets();
+    final taskStats = await metricsService.getTaskStats();
+    final doneToday = await metricsService.getTaskCompletedToday();
 
     await store.refreshMetrics();
 
     if (!mounted) return;
     setState(() {
-      _inProgress =
-          tasks.where((t) => t.status == 'inProgress').length;
-      _doneCount =
-          tasks.where((t) => t.status == 'done').length;
+      _inProgress = taskStats['inProgress'] ?? 0;
+      _doneCount = taskStats['done'] ?? 0;
       _totalTasks = tasks.length;
-      _doneToday = todayActivities
-          .where((a) => a.type == ActivityType.taskCompleted)
-          .length;
+      _doneToday = doneToday;
       _totalNotes = notes.length;
       _totalSnippets = snippets.length;
-      _weekly = _buildWeekly(weekActivities, weekStart);
     });
   }
 
-  Map<DateTime, int> _buildWeekly(
-      List<Activity> activities, DateTime start) {
-    final map = <DateTime, int>{};
-    for (int i = 0; i < 7; i++) {
-      final day = DateTime(start.year, start.month, start.day + i);
-      map[day] = 0;
-    }
-    for (final a in activities) {
-      final day =
-          DateTime(a.timestamp.year, a.timestamp.month, a.timestamp.day);
-      if (map.containsKey(day)) map[day] = map[day]! + 1;
-    }
-    return map;
-  }
-
-  String _username() {
-    final settings = context.read<SettingsService>();
-    return settings.username;
-  }
+  String _username() => context.read<SettingsService>().username;
 
   Future<void> _createTask() async {
     final result = await _showTaskDialog(context);
-    if (result != null) {
-      await _taskRepo.create(Task(
+    if (result != null && context.mounted) {
+      await context.read<TaskService>().createTask(Task(
         title: result['title']!,
         description: result['description'],
         commitHash: result['commitHash'],
@@ -151,7 +113,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _addManualTime() async {
-    final tasks = await _taskRepo.getAll();
+    final taskService = context.read<TaskService>();
+    final tasks = await taskService.getAllTasks();
     final now = DateTime.now();
 
     final result = await showDialog<Map<String, dynamic>>(
@@ -161,105 +124,103 @@ class _DashboardScreenState extends State<DashboardScreen> {
         DateTime endDate = now;
         String? taskId;
         return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return AlertDialog(
-              title: const Text('Добавить время вручную'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (tasks.isNotEmpty)
-                      DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Задача (необяз.)',
-                        ),
-                        items: tasks
-                            .map((t) => DropdownMenuItem(
-                                  value: t.id,
-                                  child: Text('${t.taskNumber} ${t.title}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis),
-                                ))
-                            .toList(),
-                        onChanged: (v) => setDialogState(() => taskId = v),
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Добавить время вручную'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (tasks.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Задача (необяз.)',
                       ),
-                    const SizedBox(height: 12),
-                    TextButton.icon(
-                      icon: const Icon(Icons.access_time),
-                      label: Text('Начало: ${DateFormat('HH:mm dd.MM', 'ru').format(startDate)}'),
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: ctx,
-                          initialDate: startDate,
-                          firstDate: startDate.subtract(const Duration(days: 30)),
-                          lastDate: now,
-                        );
-                        if (picked == null) return;
-                        final time = await showTimePicker(
-                          context: ctx,
-                          initialTime: TimeOfDay.fromDateTime(startDate),
-                        );
-                        if (time == null) return;
-                        setDialogState(() {
-                          startDate = DateTime(
-                            picked.year, picked.month, picked.day,
-                            time.hour, time.minute,
-                          );
-                        });
-                      },
+                      items: tasks
+                          .map((t) => DropdownMenuItem(
+                                value: t.id,
+                                child: Text('${t.taskNumber} ${t.title}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setDialogState(() => taskId = v),
                     ),
-                    const SizedBox(height: 4),
-                    TextButton.icon(
-                      icon: const Icon(Icons.access_time),
-                      label: Text('Конец: ${DateFormat('HH:mm dd.MM', 'ru').format(endDate)}'),
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: ctx,
-                          initialDate: endDate,
-                          firstDate: endDate.subtract(const Duration(days: 30)),
-                          lastDate: now.add(const Duration(days: 1)),
-                        );
-                        if (picked == null) return;
-                        final time = await showTimePicker(
-                          context: ctx,
-                          initialTime: TimeOfDay.fromDateTime(endDate),
-                        );
-                        if (time == null) return;
-                        setDialogState(() {
-                          endDate = DateTime(
-                            picked.year, picked.month, picked.day,
-                            time.hour, time.minute,
-                          );
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Отмена'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    if (endDate.isBefore(startDate)) {
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        const SnackBar(content: Text('Конец раньше начала')),
+                  const SizedBox(height: 12),
+                  TextButton.icon(
+                    icon: const Icon(Icons.access_time),
+                    label: Text('Начало: ${DateFormat('HH:mm dd.MM', 'ru').format(startDate)}'),
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: startDate,
+                        firstDate: startDate.subtract(const Duration(days: 30)),
+                        lastDate: now,
                       );
-                      return;
-                    }
-                    Navigator.pop(ctx, {
-                      'taskId': taskId,
-                      'startTime': startDate,
-                      'endTime': endDate,
-                    });
-                  },
-                  child: const Text('Добавить'),
-                ),
-              ],
-            );
-          },
+                      if (picked == null) return;
+                      final time = await showTimePicker(
+                        context: ctx,
+                        initialTime: TimeOfDay.fromDateTime(startDate),
+                      );
+                      if (time == null) return;
+                      setDialogState(() {
+                        startDate = DateTime(
+                          picked.year, picked.month, picked.day,
+                          time.hour, time.minute,
+                        );
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton.icon(
+                    icon: const Icon(Icons.access_time),
+                    label: Text('Конец: ${DateFormat('HH:mm dd.MM', 'ru').format(endDate)}'),
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: endDate,
+                        firstDate: endDate.subtract(const Duration(days: 30)),
+                        lastDate: now.add(const Duration(days: 1)),
+                      );
+                      if (picked == null) return;
+                      final time = await showTimePicker(
+                        context: ctx,
+                        initialTime: TimeOfDay.fromDateTime(endDate),
+                      );
+                      if (time == null) return;
+                      setDialogState(() {
+                        endDate = DateTime(
+                          picked.year, picked.month, picked.day,
+                          time.hour, time.minute,
+                        );
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Отмена'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (endDate.isBefore(startDate)) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(content: Text('Конец раньше начала')),
+                    );
+                    return;
+                  }
+                  Navigator.pop(ctx, {
+                    'taskId': taskId,
+                    'startTime': startDate,
+                    'endTime': endDate,
+                  });
+                },
+                child: const Text('Добавить'),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -272,7 +233,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
     session.durationSeconds =
         session.endTime!.difference(session.startTime).inSeconds;
-    await _workRepo.insertManual(session);
+    await context.read<MetricsService>().addManualTime(session);
     _load();
   }
 
@@ -284,15 +245,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final timer = context.watch<WorkTimerService>();
     final store = context.watch<AppStore>();
 
-    if (_prevRunning && !timer.isRunning) {
-      _load();
-    }
+    if (_prevRunning && !timer.isRunning) _load();
     _prevRunning = timer.isRunning;
 
     int displaySeconds = store.todayWorkSeconds;
-    if (timer.isRunning) {
-      displaySeconds += timer.elapsed.inSeconds;
-    }
+    if (timer.isRunning) displaySeconds += timer.elapsed.inSeconds;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Дашборд')),
@@ -309,58 +266,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: theme.colorScheme.onSurfaceVariant,
                 )),
             const SizedBox(height: 20),
-            _progressBar(
-                theme, 'В работе', _inProgress, _totalTasks, Colors.orange),
-            _progressBar(
-                theme, 'Готово', _doneCount, _totalTasks, Colors.green),
+            _progressBar(theme, 'В работе', _inProgress, _totalTasks, Colors.orange),
+            _progressBar(theme, 'Готово', _doneCount, _totalTasks, Colors.green),
             _statCard(theme, 'Завершено сегодня', _doneToday,
                 Icons.check_circle, Colors.green),
             _statCard(theme, 'Заметок', _totalNotes, Icons.note, Colors.blue),
-            _statCard(
-                theme, 'Сниппетов', _totalSnippets, Icons.code, Colors.purple),
+            _statCard(theme, 'Сниппетов', _totalSnippets, Icons.code, Colors.purple),
             const SizedBox(height: 8),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.timer,
-                            color: timer.isRunning ? Colors.green : Colors.grey),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(timer.isRunning ? 'В работе' : 'Не работаете',
-                                  style: theme.textTheme.bodyMedium),
-                              if (timer.isRunning)
-                                Text(timer.elapsedFormatted,
-                                    style: theme.textTheme.headlineSmall
-                                        ?.copyWith(color: Colors.green)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 20),
-                    Row(
-                      children: [
-                        const Icon(Icons.access_time, size: 18, color: Colors.grey),
-                        const SizedBox(width: 8),
-                        Text('Сегодня отработано',
-                            style: theme.textTheme.bodySmall),
-                        const Spacer(),
-                        Text(_formatDuration(displaySeconds),
-                            style: theme.textTheme.titleMedium
-                                ?.copyWith(color: Colors.green)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            _timerCard(theme, timer, displaySeconds),
             const SizedBox(height: 8),
             Card(
               child: Padding(
@@ -368,12 +281,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Активность за неделю',
+                    Text('Время работы за неделю',
                         style: theme.textTheme.titleSmall),
                     const SizedBox(height: 8),
                     MetricChart(
-                      dailyCounts: _weekly,
+                      dailyCounts: store.weeklyWork,
                       color: theme.colorScheme.primary,
+                      showStats: false,
                     ),
                   ],
                 ),
@@ -423,7 +337,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                  onPressed: _createSnippet,
+                onPressed: _createSnippet,
                 icon: const Icon(Icons.code),
                 label: const Text('Добавить сниппет'),
               ),
@@ -462,8 +376,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(width: 12),
                 Text(
                   total != null ? '$value/$total' : '$value',
-                  style:
-                      theme.textTheme.titleMedium?.copyWith(color: color),
+                  style: theme.textTheme.titleMedium?.copyWith(color: color),
                 ),
               ],
             ),
@@ -481,8 +394,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
         leading: Icon(icon, color: color),
         title: Text(label),
         trailing: Text('$count',
-            style:
-                theme.textTheme.headlineSmall?.copyWith(color: color)),
+            style: theme.textTheme.headlineSmall?.copyWith(color: color)),
+      ),
+    );
+  }
+
+  Widget _timerCard(ThemeData theme, WorkTimerService timer, int displaySeconds) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(Icons.timer,
+                    color: timer.isRunning ? Colors.green : Colors.grey),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(timer.isRunning ? 'В работе' : 'Не работаете',
+                          style: theme.textTheme.bodyMedium),
+                      if (timer.isRunning)
+                        Text(timer.elapsedFormatted,
+                            style: theme.textTheme.headlineSmall
+                                ?.copyWith(color: Colors.green)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 20),
+            Row(
+              children: [
+                const Icon(Icons.access_time, size: 18, color: Colors.grey),
+                const SizedBox(width: 8),
+                Text('Сегодня отработано',
+                    style: theme.textTheme.bodySmall),
+                const Spacer(),
+                Text(_formatDuration(displaySeconds),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(color: Colors.green)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -495,6 +452,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
+// TODO: перенести в отдельный widget-файл
 Future<Map<String, String?>?> _showTaskDialog(
   BuildContext context, {
   Task? task,

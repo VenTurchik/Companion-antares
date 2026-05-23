@@ -34,28 +34,4 @@ class TaskColumn {
     sortOrder: map['sortOrder'] as int? ?? 0,
     isDefault: (map['isDefault'] as int? ?? 0) == 1,
   );
-
-  static List<TaskColumn> defaults() => [
-    TaskColumn(
-      name: 'To Do',
-      statusKey: 'todo',
-      colorValue: 0xFF9E9E9E,
-      sortOrder: 0,
-      isDefault: true,
-    ),
-    TaskColumn(
-      name: 'In Progress',
-      statusKey: 'inProgress',
-      colorValue: 0xFF2196F3,
-      sortOrder: 1,
-      isDefault: true,
-    ),
-    TaskColumn(
-      name: 'Done',
-      statusKey: 'done',
-      colorValue: 0xFF4CAF50,
-      sortOrder: 2,
-      isDefault: true,
-    ),
-  ];
 }
