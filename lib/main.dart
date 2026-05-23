@@ -21,6 +21,7 @@ import 'services/settings_service.dart';
 import 'services/work_timer_service.dart';
 import 'services/app_store.dart';
 import 'services/tray_service.dart';
+import 'services/network_adapter.dart';
 import 'app.dart';
 
 void main() async {
@@ -32,13 +33,22 @@ void main() async {
   final db = DatabaseHelper();
   await db.init();
 
-  // === Репозитории (с конструкторной DI) ===
-  final TaskRepository taskRepo = TaskRepositoryImpl(db);
-  final NoteRepository noteRepo = NoteRepositoryImpl(db);
-  final SnippetRepository snippetRepo = SnippetRepositoryImpl(db);
+  // === Локальные репозитории ===
   final WorkSessionRepository workRepo = WorkSessionRepositoryImpl(db);
   final ActivityRepository activityRepo = ActivityRepositoryImpl(db);
-  final TaskColumnRepository columnRepo = TaskColumnRepositoryImpl(db);
+
+  // === Хранилище (нужно для адаптера) ===
+  final store = AppStore(workRepo, activityRepo);
+  await store.init();
+
+  // === Сетевой адаптер ===
+  final networkAdapter = AntaresNetworkAdapter(store);
+
+  // === Репозитории с поддержкой удалённого доступа ===
+  final TaskRepository taskRepo = TaskRepositoryImpl(db, adapter: networkAdapter, useRemote: true);
+  final NoteRepository noteRepo = NoteRepositoryImpl(db, adapter: networkAdapter, useRemote: true);
+  final SnippetRepository snippetRepo = SnippetRepositoryImpl(db, adapter: networkAdapter, useRemote: true);
+  final TaskColumnRepository columnRepo = TaskColumnRepositoryImpl(db, adapter: networkAdapter, useRemote: true);
 
   // === Сервисы ===
   final taskService = TaskService(taskRepo, noteRepo, snippetRepo, columnRepo);
@@ -49,8 +59,6 @@ void main() async {
   await settings.init();
   final timer = WorkTimerService(workRepo, taskRepo);
   await timer.init();
-  final store = AppStore(workRepo, activityRepo);
-  await store.init();
 
   runApp(
     MultiProvider(
@@ -58,6 +66,7 @@ void main() async {
         ChangeNotifierProvider.value(value: settings),
         ChangeNotifierProvider.value(value: timer),
         ChangeNotifierProvider.value(value: store),
+        ChangeNotifierProvider.value(value: networkAdapter),
         Provider<TaskService>.value(value: taskService),
         Provider<MetricsService>.value(value: metricsService),
       ],

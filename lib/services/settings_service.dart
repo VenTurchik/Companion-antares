@@ -16,11 +16,13 @@ class SettingsService extends ChangeNotifier {
   static const _usernameKey = 'username';
   static const _langKey = 'default_language';
   static const _ideKey = 'ide_command';
+  static const _firstLaunchKey = 'is_first_launch';
 
   ThemeMode _themeMode = ThemeMode.light;
   String _username = 'Разработчик';
   String _defaultLanguage = 'dart';
   String _ideCommand = 'code';
+  bool _isFirstLaunch = true;
 
   final List<IdeInfo> ideOptions = [
     IdeInfo('VS Code', ['code']),
@@ -41,6 +43,8 @@ class SettingsService extends ChangeNotifier {
   String get username => _username;
   String get defaultLanguage => _defaultLanguage;
   String get ideCommand => _ideCommand;
+  bool get isFirstLaunch => _isFirstLaunch;
+  bool get isOnboardingDone => !_isFirstLaunch;
 
   List<IdeInfo> get availableIdeOptions =>
       ideOptions.where((o) => o.available).toList();
@@ -53,7 +57,18 @@ class SettingsService extends ChangeNotifier {
     _username = prefs.getString(_usernameKey) ?? 'Разработчик';
     _defaultLanguage = prefs.getString(_langKey) ?? 'dart';
     _ideCommand = prefs.getString(_ideKey) ?? _firstAvailable();
+    _isFirstLaunch = prefs.getBool(_firstLaunchKey) ?? true;
     notifyListeners();
+  }
+
+  /// Отмечает онбординг пройденным.
+  Future<void> completeOnboarding(String name, String code) async {
+    _username = name;
+    _isFirstLaunch = false;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_usernameKey, name);
+    await prefs.setBool(_firstLaunchKey, false);
   }
 
   String _firstAvailable() {
@@ -110,6 +125,7 @@ class SettingsService extends ChangeNotifier {
     _username = 'Разработчик';
     _defaultLanguage = 'dart';
     _ideCommand = _firstAvailable();
+    _isFirstLaunch = true;
     notifyListeners();
   }
 

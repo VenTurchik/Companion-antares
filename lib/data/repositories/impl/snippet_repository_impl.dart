@@ -2,13 +2,34 @@ import '../../../core/database/database_helper.dart';
 import '../../../models/snippet.dart';
 import '../../../models/activity.dart';
 import '../interfaces/snippet_repository.dart';
+import '../remote/remote_sources.dart';
+import '../../../services/network_adapter.dart';
 
 class SnippetRepositoryImpl implements SnippetRepository {
   final DatabaseHelper _db;
-  SnippetRepositoryImpl(this._db);
+  final AntaresNetworkAdapter? _adapter;
+  final bool _useRemote;
+  SnippetRemoteSource? _remote;
+
+  SnippetRepositoryImpl(this._db, {AntaresNetworkAdapter? adapter, bool useRemote = false})
+      : _adapter = adapter,
+        _useRemote = useRemote {
+    if (adapter != null) _remote = SnippetRemoteSource(adapter);
+  }
+
+  bool get _shouldUseRemote {
+    final a = _adapter;
+    return _useRemote && a != null && a.isConnected;
+  }
 
   @override
-  Future<List<Snippet>> getAll() => _db.snippets.getAll();
+  Future<List<Snippet>> getAll() async {
+    if (_shouldUseRemote) {
+      final remote = await _remote!.getAll();
+      if (remote != null) return remote;
+    }
+    return _db.snippets.getAll();
+  }
 
   @override
   Future<void> create(Snippet snippet) async {

@@ -11,6 +11,10 @@ import 'screens/notes/note_list_screen.dart';
 import 'screens/snippets/snippet_list_screen.dart';
 import 'screens/metrics/metrics_screen.dart';
 import 'screens/settings/settings_screen.dart';
+import 'screens/onboarding/onboarding_screen.dart';
+import 'screens/connection/connection_screen.dart';
+import 'services/app_store.dart';
+import 'services/network_adapter.dart';
 
 /// Корневой виджет приложения.
 class CompanionApp extends StatelessWidget {
@@ -57,7 +61,9 @@ class CompanionApp extends StatelessWidget {
           surfaceTintColor: Color(0xFF1E1E1E),
         ),
       ),
-      home: const MainShell(),
+      home: settings.isOnboardingDone
+          ? const MainShell()
+          : const OnboardingScreen(),
     );
   }
 }
@@ -83,6 +89,7 @@ class _MainShellState extends State<MainShell> {
           Column(
             children: [
               _buildTimerPanel(timer, theme),
+              _buildConnectionIndicator(context, theme),
               Expanded(
                 child: NavigationRail(
                   selectedIndex: _index,
@@ -205,6 +212,62 @@ class _MainShellState extends State<MainShell> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildConnectionIndicator(BuildContext context, ThemeData theme) {
+    final store = context.watch<AppStore>();
+    final adapter = context.watch<AntaresNetworkAdapter>();
+    final connected = adapter.isConnected;
+    return InkWell(
+      onTap: () {
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const ConnectionScreen()));
+      },
+      child: Container(
+        width: 80,
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        decoration: BoxDecoration(
+          color: connected
+              ? Colors.green.withValues(alpha: 0.08)
+              : Colors.grey.withValues(alpha: 0.03),
+          border: Border(
+            bottom: BorderSide(color: theme.dividerColor),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              connected ? Icons.cloud_done : Icons.cloud_outlined,
+              size: 16,
+              color: connected ? Colors.green : Colors.grey,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              store.connectionLabel,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(fontSize: 8, height: 1.2),
+            ),
+            if (connected && store.userRole != null) ...[
+              const SizedBox(height: 1),
+              Text(
+                store.roleLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontSize: 7,
+                  color: Colors.grey,
+                  height: 1.1,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

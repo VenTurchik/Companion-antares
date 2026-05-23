@@ -7,6 +7,9 @@ import '../core/constants.dart';
 import '../data/repositories/interfaces/work_session_repository.dart';
 import '../data/repositories/interfaces/activity_repository.dart';
 
+/// Статус подключения к серверу.
+enum ServerConnectionState { local, connected }
+
 /// ChangeNotifier-хранилище пользовательских данных и кеша метрик.
 /// Сохраняется в JSON-файл (companion_store.json) для персистентности.
 class AppStore extends ChangeNotifier {
@@ -15,12 +18,38 @@ class AppStore extends ChangeNotifier {
 
   AppStore(this._workRepo, this._activityRepo);
 
-  // --- Данные пользователя (для будущей сетевой синхронизации) ---
+  // --- Данные пользователя ---
   String userId = const Uuid().v4();
   String? authToken;
   String? refreshToken;
   DateTime? lastSyncAt;
   String? syncServerUrl;
+
+  // --- Данные подключения к POLARIS ---
+  ServerConnectionState _connectionState = ServerConnectionState.local;
+  String? _serverUrl;
+  String? _serverName;
+  String? _userRole; // root | участник
+  DateTime? _connectedAt;
+
+  ServerConnectionState get connectionState => _connectionState;
+  String? get serverUrl => _serverUrl;
+  String? get serverName => _serverName;
+  String? get userRole => _userRole;
+  DateTime? get connectedAt => _connectedAt;
+  bool get isConnected => _connectionState == ServerConnectionState.connected;
+
+  String get connectionLabel {
+    if (_connectionState == ServerConnectionState.connected && _serverName != null) {
+      return 'Подключено: $_serverName';
+    }
+    return 'Локально';
+  }
+
+  String get roleLabel {
+    if (_userRole == null) return '';
+    return 'Роль: $_userRole';
+  }
 
   // --- Кеш метрик ---
   int todayWorkSeconds = 0;
@@ -60,6 +89,15 @@ class AppStore extends ChangeNotifier {
             ? DateTime.parse(data['lastSyncAt'] as String)
             : null;
         syncServerUrl = data['syncServerUrl'] as String?;
+        _serverUrl = data['serverUrl'] as String?;
+        _serverName = data['serverName'] as String?;
+        _userRole = data['userRole'] as String?;
+        _connectionState = data['connectedAt'] != null
+            ? ServerConnectionState.connected
+            : ServerConnectionState.local;
+        if (data['connectedAt'] != null) {
+          _connectedAt = DateTime.parse(data['connectedAt'] as String);
+        }
         todayWorkSeconds = data['todayWorkSeconds'] as int? ?? 0;
         if (data['weeklyWork'] != null) {
           _weeklyWorkCache = Map<String, int>.from(data['weeklyWork'] as Map);
@@ -82,6 +120,10 @@ class AppStore extends ChangeNotifier {
       'refreshToken': refreshToken,
       'lastSyncAt': lastSyncAt?.toIso8601String(),
       'syncServerUrl': syncServerUrl,
+      'serverUrl': _serverUrl,
+      'serverName': _serverName,
+      'userRole': _userRole,
+      'connectedAt': _connectedAt?.toIso8601String(),
       'todayWorkSeconds': todayWorkSeconds,
       'weeklyWork': _weeklyWorkCache,
       'dailyActivity': _dailyActivityCache,
@@ -105,6 +147,36 @@ class AppStore extends ChangeNotifier {
 
   Future<void> markSynced() async {
     lastSyncAt = DateTime.now();
+    notifyListeners();
+    await _persist();
+  }
+
+  /// Сохраняет данные пользователя после онбординга.
+  Future<void> setUserData(String name, String code) async {
+    userId = name;
+    authToken = code;
+    notifyListeners();
+    await _persist();
+  }
+
+  /// Обновляет статус подключения к POLARIS.
+  Future<void> setConnected(String url, String name, String role) async {
+    _connectionState = ServerConnectionState.connected;
+    _serverUrl = url;
+    _serverName = name;
+    _userRole = role;
+    _connectedAt = DateTime.now();
+    notifyListeners();
+    await _persist();
+  }
+
+  /// Сбрасывает подключение.
+  Future<void> setDisconnected() async {
+    _connectionState = ServerConnectionState.local;
+    _serverUrl = null;
+    _serverName = null;
+    _userRole = null;
+    _connectedAt = null;
     notifyListeners();
     await _persist();
   }
