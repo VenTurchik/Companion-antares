@@ -1,8 +1,8 @@
 # Companion
 
-> Личное рабочее пространство разработчика — десктопное приложение на Flutter.
+> **Alpha** — версия 0.1.0-alpha. API и схема БД могут меняться.
 
-Персональный инструмент для управления задачами, заметками, сниппетами и трекингом рабочего времени. Работает на Windows, Linux и macOS.
+Личное рабочее пространство разработчика — десктопное приложение на Flutter. Управление задачами, заметками, сниппетами и трекинг рабочего времени. Windows, Linux, macOS.
 
 ## Возможности
 
@@ -38,6 +38,98 @@
 - Тёмная/светлая тема
 - Автоопределение IDE (VS Code, Zed, IntelliJ и др.)
 - Запуск IDE из приложения
+
+## Архитектура
+
+Чистая архитектура (clean architecture), 4 слоя:
+
+```
+lib/
+├── main.dart                        # Точка входа, DI-контейнер
+├── app.dart                         # Корневой виджет, навигация, темы
+│
+├── core/                            # Инфраструктура
+│   ├── constants.dart               # Константы, ключи статусов
+│   ├── errors/
+│   │   └── app_exception.dart       # Исключения предметной области
+│   └── database/
+│       ├── database_helper.dart     # Координатор БД (singleton)
+│       ├── migrations.dart          # Миграции v1 → v4
+│       └── tables/                  # Табличные классы (SRP)
+│           ├── tasks_table.dart
+│           ├── notes_table.dart
+│           ├── snippets_table.dart
+│           ├── activities_table.dart
+│           ├── work_sessions_table.dart
+│           └── task_columns_table.dart
+│
+├── data/                            # Слой данных
+│   └── repositories/
+│       ├── interfaces/              # Абстракции (DIP)
+│       │   ├── task_repository.dart
+│       │   ├── note_repository.dart
+│       │   ├── snippet_repository.dart
+│       │   ├── work_session_repository.dart
+│       │   ├── activity_repository.dart
+│       │   └── task_column_repository.dart
+│       └── impl/                    # Реализации SQLite
+│           ├── task_repository_impl.dart
+│           ├── note_repository_impl.dart
+│           ├── snippet_repository_impl.dart
+│           ├── work_session_repository_impl.dart
+│           ├── activity_repository_impl.dart
+│           └── task_column_repository_impl.dart
+│
+├── domain/                          # Бизнес-логика
+│   ├── models/                      # Модели данных
+│   │   ├── task.dart
+│   │   ├── task_column.dart
+│   │   ├── note.dart
+│   │   ├── snippet.dart
+│   │   ├── work_session.dart
+│   │   └── activity.dart
+│   └── services/
+│       ├── task_service.dart        # Сервис управления задачами
+│       └── metrics_service.dart     # Сервис расчёта метрик
+│
+├── services/                        # ChangeNotifier-сервисы
+│   ├── settings_service.dart        # Настройки (SharedPreferences)
+│   ├── work_timer_service.dart      # Таймер рабочего времени
+│   ├── app_store.dart               # Хранилище + кеш метрик (JSON)
+│   └── tray_service.dart            # Системный трей
+│
+├── screens/                         # Экраны
+│   ├── dashboard/
+│   │   └── dashboard_screen.dart
+│   ├── kanban/
+│   │   ├── kanban_screen.dart
+│   │   ├── dialogs/
+│   │   │   ├── task_dialog.dart
+│   │   │   └── column_dialog.dart
+│   │   └── widgets/
+│   │       ├── kanban_board.dart
+│   │       ├── kanban_table_tab.dart
+│   │       └── archive_tab.dart
+│   ├── tasks/
+│   │   └── task_detail_screen.dart
+│   ├── notes/
+│   │   ├── note_list_screen.dart
+│   │   └── note_editor_screen.dart
+│   ├── snippets/
+│   │   ├── snippet_list_screen.dart
+│   │   └── snippet_editor_screen.dart
+│   ├── metrics/
+│   │   └── metrics_screen.dart
+│   └── settings/
+│       └── settings_screen.dart
+│
+└── widgets/                         # Переиспользуемые виджеты
+    ├── task_card.dart
+    ├── kanban_column.dart
+    └── metric_chart.dart
+```
+
+Управление состоянием — Provider (ChangeNotifier + Provider). DI — ручное, через конструктор в `main.dart`.
 
 ## Технологии
 
@@ -81,51 +173,9 @@ flutter build linux --release           # linux/windows/macos
 
 При пуше в `main` GitHub Actions собирает release-версии для всех трёх платформ автоматически. Артефакты доступны 7 дней.
 
-## Структура проекта
+## Документация
 
-```
-lib/
-├── app.dart                   # Главный виджет, темы, навигация
-├── main.dart                  # Точка входа, инициализация провайдеров
-├── database/
-│   └── database_helper.dart   # SQLite, миграции v1→v4
-├── models/                    # Модели данных
-│   ├── task.dart
-│   ├── task_column.dart
-│   ├── note.dart
-│   ├── snippet.dart
-│   ├── work_session.dart
-│   └── activity.dart
-├── repositories/              # Слой доступа к данным
-│   ├── task_repository.dart
-│   ├── note_repository.dart
-│   ├── snippet_repository.dart
-│   ├── work_session_repository.dart
-│   └── activity_repository.dart
-├── services/                  # Бизнес-логика
-│   ├── settings_service.dart
-│   ├── work_timer_service.dart
-│   ├── app_store.dart
-│   └── tray_service.dart
-├── screens/                   # Экраны
-│   ├── dashboard_screen.dart
-│   ├── kanban_screen.dart
-│   ├── task_detail_screen.dart
-│   ├── note_list_screen.dart
-│   ├── note_editor_screen.dart
-│   ├── snippet_list_screen.dart
-│   ├── snippet_editor_screen.dart
-│   ├── metrics_screen.dart
-│   └── settings_screen.dart
-└── widgets/                   # Переиспользуемые виджеты
-    ├── task_card.dart
-    ├── kanban_column.dart
-    └── metric_chart.dart
-```
-
-## Скриншоты
-
-*(добавьте скриншоты по мере готовности)*
+[`docs.pdf`](docs.pdf) — полное описание архитектуры, модели данных, БД, слоёв приложения и DI (A4, 12 с., русский).
 
 ## Лицензия
 
