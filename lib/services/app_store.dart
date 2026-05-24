@@ -40,6 +40,8 @@ class AppStore extends ChangeNotifier {
   String? get sessionToken => _sessionToken;
   DateTime? get connectedAt => _connectedAt;
   bool get isConnected => _connectionState == ServerConnectionState.connected;
+  String get connectionStatus => isConnected ? 'connected' : 'local';
+  bool get isRemote => isConnected;
 
   String get connectionLabel {
     if (_connectionState == ServerConnectionState.connected && _serverName != null) {

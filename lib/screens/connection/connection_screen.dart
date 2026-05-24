@@ -5,7 +5,6 @@ import '../../services/app_store.dart';
 import '../../services/network_adapter.dart';
 import '../../services/sync_service.dart';
 
-/// Экран подключения к серверу POLARIS.
 class ConnectionScreen extends StatefulWidget {
   const ConnectionScreen({super.key});
 
@@ -41,30 +40,108 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       );
       return;
     }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Подключение к серверу'),
+        content: const Text('Загрузить данные с сервера? Локальные данные будут заменены.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Только подключиться'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Загрузить данные'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == null) return;
+
     setState(() => _connecting = true);
     final adapter = context.read<AntaresNetworkAdapter>();
-    final ok = await adapter.connect(url);
+    final success = await adapter.connect(url);
     if (mounted) {
       setState(() => _connecting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok ? 'Подключено к POLARIS' : 'Ошибка подключения'),
-          backgroundColor: ok ? Colors.green : Colors.red,
-        ),
-      );
-      if (ok) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Подключено к POLARIS'), backgroundColor: Colors.green),
+        );
         await adapter.getServerStats();
+        if (ok) {
+          context.read<SyncService>().copyServerData();
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка подключения'), backgroundColor: Colors.red),
+        );
       }
     }
   }
 
   Future<void> _disconnect() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Отключение от сервера'),
+        content: const Text('Сохранить копию данных сервера локально?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Не сохранять'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Сохранить копию'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == null) return;
+
+    if (ok) {
+      final syncService = context.read<SyncService>();
+      await syncService.copyServerData();
+    }
+
     final adapter = context.read<AntaresNetworkAdapter>();
     await adapter.disconnect();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Отключено от сервера')),
       );
+    }
+  }
+
+  Future<void> _copyData() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Копирование данных'),
+        content: const Text('Скопировать все данные с сервера в локальное хранилище?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Копировать'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    final syncService = context.read<SyncService>();
+    await syncService.copyServerData();
+    if (mounted) {
+      context.read<AntaresNetworkAdapter>().getServerStats();
     }
   }
 
@@ -119,16 +196,16 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     final adapter = context.watch<AntaresNetworkAdapter>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Подключение к серверу')),
+      appBar: AppBar(
+        title: Text(store.connectionLabel),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Статус подключения
             _statusCard(theme, store, adapter),
             const SizedBox(height: 24),
-            // Поле ввода URL
             TextField(
               controller: _urlCtrl,
               decoration: const InputDecoration(
@@ -140,7 +217,6 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               enabled: !_connecting && !adapter.isConnected,
             ),
             const SizedBox(height: 16),
-            // Кнопка сканирования сети
             if (!adapter.isConnected)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -160,7 +236,6 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                   ),
                 ),
               ),
-            // Кнопка подключения/отключения
             SizedBox(
               width: double.infinity,
               height: 48,
@@ -187,13 +262,12 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                     ),
             ),
             const SizedBox(height: 24),
-            // Информация о сервере
-            if (store.isConnected && store.serverName != null) ...[
+            if (adapter.isConnected) ...[
               Text('Информация о сервере',
                   style: theme.textTheme.titleSmall
                       ?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              _infoRow(theme, 'Имя', store.serverName!),
+              _infoRow(theme, 'Имя', store.serverName ?? ''),
               if (store.serverUrl != null)
                 _infoRow(theme, 'URL', store.serverUrl!),
               if (store.userRole != null)
@@ -201,14 +275,12 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               if (store.connectedAt != null)
                 _infoRow(theme, 'Подключено',
                     DateFormat('dd.MM.yyyy HH:mm', 'ru').format(store.connectedAt!)),
+              const SizedBox(height: 24),
+              _copySection(theme, context, store),
+              const SizedBox(height: 24),
+              if (adapter.serverStats != null)
+                _statsSection(theme, adapter),
             ],
-            const SizedBox(height: 24),
-            // Синхронизация
-            _syncSection(theme, context, store),
-            const SizedBox(height: 24),
-            // Статистика сервера
-            if (adapter.isConnected && adapter.serverStats != null)
-              _statsSection(theme, adapter),
           ],
         ),
       ),
@@ -232,7 +304,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  connected ? 'Подключено' : 'Локальный режим',
+                  connected ? 'Командный режим' : 'Локальный режим',
                   style: theme.textTheme.titleMedium
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
@@ -267,6 +339,58 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _copySection(ThemeData theme, BuildContext context, AppStore store) {
+    final syncService = context.watch<SyncService>();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Копирование данных',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        if (syncService.lastMessage.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(syncService.lastMessage,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: syncService.state == SyncState.error
+                      ? Colors.red
+                      : syncService.state == SyncState.done
+                          ? Colors.green
+                          : null,
+                )),
+          ),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: FilledButton.tonalIcon(
+            onPressed: syncService.state != SyncState.syncing
+                ? _copyData
+                : null,
+            icon: syncService.state == SyncState.syncing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save_alt),
+            label: Text(
+              syncService.state == SyncState.syncing
+                  ? 'Копирование...'
+                  : 'Скопировать данные сервера'),
+          ),
+        ),
+        if (syncService.state == SyncState.done && store.lastSyncAt != null) ...[
+          const SizedBox(height: 4),
+          Text('Последняя синхронизация: ${DateFormat('dd.MM.yyyy HH:mm', 'ru').format(store.lastSyncAt!)}',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        ],
+      ],
     );
   }
 
@@ -322,64 +446,6 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
         const SizedBox(width: 8),
         Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w500)),
         Expanded(child: Text(value)),
-      ],
-    );
-  }
-
-  Widget _syncSection(ThemeData theme, BuildContext context, AppStore store) {
-    final syncService = context.watch<SyncService>();
-    final connected = context.watch<AntaresNetworkAdapter>().isConnected;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Синхронизация',
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        if (syncService.lastMessage.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(syncService.lastMessage,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: syncService.state == SyncState.error
-                      ? Colors.red
-                      : syncService.state == SyncState.done
-                          ? Colors.green
-                          : null,
-                )),
-          ),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: FilledButton.tonalIcon(
-            onPressed: connected && syncService.state != SyncState.syncing
-                ? () async {
-                    await syncService.syncAll();
-                    if (mounted) {
-                      context.read<AntaresNetworkAdapter>().getServerStats();
-                    }
-                  }
-                : null,
-            icon: syncService.state == SyncState.syncing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.sync),
-            label: Text(
-              syncService.state == SyncState.syncing
-                  ? 'Синхронизация...'
-                  : 'Синхронизировать всё'),
-          ),
-        ),
-        if (store.lastSyncAt != null) ...[
-          const SizedBox(height: 4),
-          Text('Последняя синхронизация: ${DateFormat('dd.MM.yyyy HH:mm', 'ru').format(store.lastSyncAt!)}',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-        ],
       ],
     );
   }

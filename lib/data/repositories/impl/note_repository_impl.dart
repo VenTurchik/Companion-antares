@@ -4,55 +4,52 @@ import '../../../models/activity.dart';
 import '../interfaces/note_repository.dart';
 import '../remote/remote_sources.dart';
 import '../../../services/network_adapter.dart';
+import '../../../services/app_store.dart';
 
 class NoteRepositoryImpl implements NoteRepository {
   final DatabaseHelper _db;
-  final AntaresNetworkAdapter? _adapter;
-  final bool _useRemote;
-  NoteRemoteSource? _remote;
+  final AppStore _store;
+  final NoteRemoteSource _remote;
 
-  NoteRepositoryImpl(this._db, {AntaresNetworkAdapter? adapter, bool useRemote = false})
-      : _adapter = adapter,
-        _useRemote = useRemote {
-    if (adapter != null) _remote = NoteRemoteSource(adapter);
-  }
+  NoteRepositoryImpl(this._db, this._store, AntaresNetworkAdapter adapter)
+      : _remote = NoteRemoteSource(adapter);
 
-  bool get _shouldUseRemote {
-    final a = _adapter;
-    return _useRemote && a != null && a.isConnected;
-  }
+  bool get _useRemote => _store.isRemote;
 
   @override
   Future<List<Note>> getAll() async {
-    if (_shouldUseRemote) {
-      final remote = await _remote!.getAll();
-      if (remote != null) return remote;
+    if (_useRemote) {
+      final remote = await _remote.getAll();
+      return remote ?? [];
     }
     return _db.notes.getAll();
   }
 
   @override
   Future<void> create(Note note) async {
+    if (_useRemote) {
+      await _remote.create(note);
+      return;
+    }
     await _db.notes.insert(note);
     await _db.activities.insert(Activity(type: ActivityType.noteCreated));
-    if (_shouldUseRemote) {
-      await _remote!.create(note);
-    }
   }
 
   @override
   Future<void> update(Note note) async {
-    await _db.notes.update(note);
-    if (_shouldUseRemote) {
-      await _remote!.update(note);
+    if (_useRemote) {
+      await _remote.update(note);
+      return;
     }
+    await _db.notes.update(note);
   }
 
   @override
   Future<void> delete(String id) async {
-    await _db.notes.delete(id);
-    if (_shouldUseRemote) {
-      await _remote!.delete(id);
+    if (_useRemote) {
+      await _remote.delete(id);
+      return;
     }
+    await _db.notes.delete(id);
   }
 }

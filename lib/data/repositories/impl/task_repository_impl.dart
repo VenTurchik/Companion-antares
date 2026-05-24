@@ -4,49 +4,60 @@ import '../../../models/activity.dart';
 import '../interfaces/task_repository.dart';
 import '../remote/remote_sources.dart';
 import '../../../services/network_adapter.dart';
+import '../../../services/app_store.dart';
 
-/// Реализация репозитория задач через DatabaseHelper (SQLite) или удалённо.
 class TaskRepositoryImpl implements TaskRepository {
   final DatabaseHelper _db;
-  final AntaresNetworkAdapter? _adapter;
-  final bool _useRemote;
-  TaskRemoteSource? _remote;
+  final AppStore _store;
+  final TaskRemoteSource _remote;
 
-  TaskRepositoryImpl(this._db, {AntaresNetworkAdapter? adapter, bool useRemote = false})
-      : _adapter = adapter,
-        _useRemote = useRemote {
-    if (adapter != null) _remote = TaskRemoteSource(adapter);
-  }
+  TaskRepositoryImpl(this._db, this._store, AntaresNetworkAdapter adapter)
+      : _remote = TaskRemoteSource(adapter);
 
-  bool get _shouldUseRemote {
-    final a = _adapter;
-    return _useRemote && a != null && a.isConnected;
-  }
+  bool get _useRemote => _store.isRemote;
 
   @override
   Future<List<Task>> getAll() async {
-    if (_shouldUseRemote) {
-      final remote = await _remote!.getAll();
-      if (remote != null) return remote;
+    if (_useRemote) {
+      final remote = await _remote.getAll();
+      return remote ?? [];
     }
     return _db.tasks.getAll();
   }
 
   @override
-  Future<Task?> getById(String id) => _db.tasks.getById(id);
+  Future<Task?> getById(String id) async {
+    if (_useRemote) {
+      final tasks = await _remote.getAll();
+      if (tasks != null) {
+        try {
+          return tasks.firstWhere((t) => t.id == id);
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
+    }
+    return _db.tasks.getById(id);
+  }
 
   @override
   Future<void> create(Task task) async {
+    if (_useRemote) {
+      await _remote.create(task);
+      return;
+    }
     task.taskNumber = await _db.tasks.nextTaskNumber();
     await _db.tasks.insert(task);
     await _db.activities.insert(Activity(type: ActivityType.taskCreated));
-    if (_shouldUseRemote) {
-      await _remote!.create(task);
-    }
   }
 
   @override
   Future<void> update(Task task) async {
+    if (_useRemote) {
+      await _remote.update(task);
+      return;
+    }
     if (task.status == 'done' && task.completedAt == null) {
       task.completedAt = DateTime.now();
       await _db.activities.insert(Activity(type: ActivityType.taskCompleted));
@@ -55,16 +66,14 @@ class TaskRepositoryImpl implements TaskRepository {
       task.completedAt = null;
     }
     await _db.tasks.update(task);
-    if (_shouldUseRemote) {
-      await _remote!.update(task);
-    }
   }
 
   @override
   Future<void> delete(String id) async {
-    await _db.tasks.delete(id);
-    if (_shouldUseRemote) {
-      await _remote!.delete(id);
+    if (_useRemote) {
+      await _remote.delete(id);
+      return;
     }
+    await _db.tasks.delete(id);
   }
 }

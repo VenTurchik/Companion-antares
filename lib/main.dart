@@ -45,11 +45,11 @@ void main() async {
   // === Сетевой адаптер ===
   final networkAdapter = AntaresNetworkAdapter(store);
 
-  // === Репозитории с поддержкой удалённого доступа ===
-  final TaskRepository taskRepo = TaskRepositoryImpl(db, adapter: networkAdapter, useRemote: true);
-  final NoteRepository noteRepo = NoteRepositoryImpl(db, adapter: networkAdapter, useRemote: true);
-  final SnippetRepository snippetRepo = SnippetRepositoryImpl(db, adapter: networkAdapter, useRemote: true);
-  final TaskColumnRepository columnRepo = TaskColumnRepositoryImpl(db, adapter: networkAdapter, useRemote: true);
+  // === Репозитории с поддержкой двух режимов ===
+  final TaskRepository taskRepo = TaskRepositoryImpl(db, store, networkAdapter);
+  final NoteRepository noteRepo = NoteRepositoryImpl(db, store, networkAdapter);
+  final SnippetRepository snippetRepo = SnippetRepositoryImpl(db, store, networkAdapter);
+  final TaskColumnRepository columnRepo = TaskColumnRepositoryImpl(db, store, networkAdapter);
 
   // === Сервисы ===
   final taskService = TaskService(taskRepo, noteRepo, snippetRepo, columnRepo);

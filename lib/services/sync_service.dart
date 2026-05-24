@@ -22,26 +22,26 @@ class SyncService extends ChangeNotifier {
   String _lastMessage = '';
   String get lastMessage => _lastMessage;
 
-  Future<void> syncAll() async {
+  Future<void> copyServerData() async {
     if (_state == SyncState.syncing) return;
-    if (!_adapter.isConnected) {
-      _lastMessage = 'Нет подключения к серверу';
+    if (!_store.isRemote) {
+      _lastMessage = 'Не подключено к серверу';
       _state = SyncState.error;
       notifyListeners();
       return;
     }
 
     _state = SyncState.syncing;
-    _lastMessage = 'Синхронизация...';
+    _lastMessage = 'Копирование данных с сервера...';
     notifyListeners();
 
     try {
-      await _syncKanban();
-      await _syncNotes();
-      await _syncSnippets();
+      await _copyKanban();
+      await _copyNotes();
+      await _copySnippets();
 
       await _store.markSynced();
-      _lastMessage = 'Синхронизация завершена';
+      _lastMessage = 'Данные скопированы с сервера';
       _state = SyncState.done;
     } catch (e) {
       _lastMessage = 'Ошибка: $e';
@@ -50,69 +50,67 @@ class SyncService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _syncKanban() async {
+  Future<void> _copyKanban() async {
     final data = await _adapter.syncKanban();
     if (data == null) return;
     final columns = data['columns'];
     if (columns is! List) return;
 
+    final allTasks = await _db.tasks.getAll();
+    for (final t in allTasks) {
+      await _db.tasks.delete(t.id);
+    }
+    final allCols = await _db.taskColumns.getAll();
+    for (final c in allCols) {
+      await _db.taskColumns.delete(c.id);
+    }
+
     for (final col in columns) {
       final colMap = col as Map<String, dynamic>;
-      final colId = colMap['id']?.toString() ?? '';
-      final existingCol = await _db.taskColumns.getById(colId);
-      if (existingCol != null) {
-        await _db.taskColumns.update(TaskColumn.fromMap(colMap));
-      } else {
-        await _db.taskColumns.insert(TaskColumn.fromMap(colMap));
-      }
+      final column = TaskColumn.fromMap(colMap);
+      await _db.taskColumns.insert(column);
 
       final tasks = colMap['tasks'];
       if (tasks is List) {
         for (final t in tasks) {
-          final taskMap = t as Map<String, dynamic>;
-          final taskId = taskMap['id']?.toString() ?? '';
-          final existing = await _db.tasks.getById(taskId);
-          if (existing != null) {
-            await _db.tasks.update(Task.fromMap(taskMap));
-          } else {
-            await _db.tasks.insert(Task.fromMap(taskMap));
-          }
+          final task = Task.fromMap(t as Map<String, dynamic>);
+          await _db.tasks.insert(task);
         }
       }
     }
   }
 
-  Future<void> _syncNotes() async {
+  Future<void> _copyNotes() async {
     final data = await _adapter.syncNotes();
     if (data == null) return;
     final list = data['notes'];
     if (list is! List) return;
+
+    final existing = await _db.notes.getAll();
+    for (final n in existing) {
+      await _db.notes.delete(n.id);
+    }
+
     for (final e in list) {
-      final map = e as Map<String, dynamic>;
-      final id = map['id']?.toString() ?? '';
-      final existing = await _db.notes.getById(id);
-      if (existing != null) {
-        await _db.notes.update(Note.fromMap(map));
-      } else {
-        await _db.notes.insert(Note.fromMap(map));
-      }
+      final note = Note.fromMap(e as Map<String, dynamic>);
+      await _db.notes.insert(note);
     }
   }
 
-  Future<void> _syncSnippets() async {
+  Future<void> _copySnippets() async {
     final data = await _adapter.syncSnippets();
     if (data == null) return;
     final list = data['snippets'];
     if (list is! List) return;
+
+    final existing = await _db.snippets.getAll();
+    for (final s in existing) {
+      await _db.snippets.delete(s.id);
+    }
+
     for (final e in list) {
-      final map = e as Map<String, dynamic>;
-      final id = map['id']?.toString() ?? '';
-      final existing = await _db.snippets.getById(id);
-      if (existing != null) {
-        await _db.snippets.update(Snippet.fromMap(map));
-      } else {
-        await _db.snippets.insert(Snippet.fromMap(map));
-      }
+      final snippet = Snippet.fromMap(e as Map<String, dynamic>);
+      await _db.snippets.insert(snippet);
     }
   }
 
