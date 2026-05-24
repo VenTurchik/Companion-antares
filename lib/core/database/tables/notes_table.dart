@@ -11,6 +11,12 @@ class NotesTable {
     return maps.map((m) => Note.fromMap(m)).toList();
   }
 
+  Future<Note?> getById(String id) async {
+    final maps = await db.query('notes', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (maps.isEmpty) return null;
+    return Note.fromMap(maps.first);
+  }
+
   Future<void> insert(Note note) async => db.insert('notes', note.toMap());
 
   Future<void> update(Note note) async {

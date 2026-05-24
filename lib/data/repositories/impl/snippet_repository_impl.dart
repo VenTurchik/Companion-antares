@@ -35,11 +35,24 @@ class SnippetRepositoryImpl implements SnippetRepository {
   Future<void> create(Snippet snippet) async {
     await _db.snippets.insert(snippet);
     await _db.activities.insert(Activity(type: ActivityType.snippetCreated));
+    if (_shouldUseRemote) {
+      await _remote!.create(snippet);
+    }
   }
 
   @override
-  Future<void> update(Snippet snippet) => _db.snippets.update(snippet);
+  Future<void> update(Snippet snippet) async {
+    await _db.snippets.update(snippet);
+    if (_shouldUseRemote) {
+      await _remote!.update(snippet);
+    }
+  }
 
   @override
-  Future<void> delete(String id) => _db.snippets.delete(id);
+  Future<void> delete(String id) async {
+    await _db.snippets.delete(id);
+    if (_shouldUseRemote) {
+      await _remote!.delete(id);
+    }
+  }
 }

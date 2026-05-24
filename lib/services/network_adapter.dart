@@ -29,21 +29,31 @@ class AntaresNetworkAdapter extends ChangeNotifier {
       _client = HttpClient();
       _client!.connectionTimeout = const Duration(seconds: 10);
 
-      final uri = Uri.parse('$url/api/auth');
+      final uri = Uri.parse('$url/api/v1/handshake');
       final req = await _client!.postUrl(uri);
       req.headers.contentType = ContentType.json;
+      print('=== ДЕБАГ РУКОПОЖАТИЯ ===');
+      print('URL: $url/api/v1/handshake');
+      print('user_name: $username');
+      print('confirmation_code: $authCode');
+      print('========================');
+
       req.write(jsonEncode({
-        'username': username,
-        'authCode': authCode,
+        'client_name': 'Antares',
+        'client_version': '0.1.0',
+        'user_name': username,
+        'confirmation_code': authCode,
       }));
 
       final res = await req.close();
       if (res.statusCode == 200) {
         final body = await res.transform(utf8.decoder).join();
         final data = jsonDecode(body) as Map<String, dynamic>;
-        final serverName = data['serverName'] as String? ?? 'POLARIS';
-        final role = data['role'] as String? ?? 'участник';
+        final serverName = data['server_name'] as String? ?? 'POLARIS';
+        final role = data['user_role'] as String? ?? 'участник';
         await _store.setConnected(url, serverName, role);
+        final token = data['session_token'] as String?;
+        if (token != null) await _store.setSessionToken(token);
         _isConnecting = false;
         notifyListeners();
         return true;
@@ -65,13 +75,16 @@ class AntaresNetworkAdapter extends ChangeNotifier {
   }
 
   /// Синхронизация канбана.
-  Future<Map<String, dynamic>?> syncKanban() => _get('/api/kanban');
+  Future<Map<String, dynamic>?> syncKanban() => _get('/api/v1/kanban/columns?board_id=1');
 
   /// Синхронизация заметок.
-  Future<Map<String, dynamic>?> syncNotes() => _get('/api/notes');
+  Future<Map<String, dynamic>?> syncNotes() => _get('/api/v1/notes');
 
   /// Синхронизация сниппетов.
-  Future<Map<String, dynamic>?> syncSnippets() => _get('/api/snippets');
+  Future<Map<String, dynamic>?> syncSnippets() => _get('/api/v1/snippets');
+
+  /// POST запрос.
+  Future<bool> post(String path, Map<String, dynamic> data) => _post(path, data);
 
   /// PUT запрос.
   Future<bool> put(String path, Map<String, dynamic> data) => _put(path, data);
@@ -94,6 +107,21 @@ class AntaresNetworkAdapter extends ChangeNotifier {
     return null;
   }
 
+  Future<bool> _post(String path, Map<String, dynamic> data) async {
+    if (_client == null || !isConnected) return false;
+    try {
+      final uri = Uri.parse('${_store.serverUrl}$path');
+      final req = await _client!.postUrl(uri);
+      req.headers.contentType = ContentType.json;
+      _attachAuth(req);
+      req.write(jsonEncode(data));
+      final res = await req.close();
+      return res.statusCode == 200 || res.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> _put(String path, Map<String, dynamic> data) async {
     if (_client == null || !isConnected) return false;
     try {
@@ -103,7 +131,7 @@ class AntaresNetworkAdapter extends ChangeNotifier {
       _attachAuth(req);
       req.write(jsonEncode(data));
       final res = await req.close();
-      return res.statusCode == 200;
+      return res.statusCode == 200 || res.statusCode == 201;
     } catch (_) {
       return false;
     }
@@ -123,8 +151,8 @@ class AntaresNetworkAdapter extends ChangeNotifier {
   }
 
   void _attachAuth(HttpClientRequest req) {
-    if (_store.authToken != null) {
-      req.headers.set('X-Auth-Code', _store.authToken!);
+    if (_store.sessionToken != null) {
+      req.headers.set('Authorization', 'Bearer ${_store.sessionToken!}');
     }
   }
 

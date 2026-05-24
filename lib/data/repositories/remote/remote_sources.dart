@@ -12,14 +12,23 @@ class TaskRemoteSource {
   Future<List<Task>?> getAll() async {
     final data = await _adapter.syncKanban();
     if (data == null) return null;
-    final list = data['tasks'];
-    if (list is! List) return null;
-    return list.map((e) => Task.fromMap(e as Map<String, dynamic>)).toList();
+    final columns = data['columns'];
+    if (columns is! List) return null;
+    final tasks = <Task>[];
+    for (final col in columns) {
+      final colTasks = (col as Map<String, dynamic>)['tasks'];
+      if (colTasks is List) {
+        for (final t in colTasks) {
+          tasks.add(Task.fromMap(t as Map<String, dynamic>));
+        }
+      }
+    }
+    return tasks;
   }
 
-  Future<void> create(Task task) => _adapter.put('/api/kanban/tasks', task.toMap());
-  Future<void> update(Task task) => _adapter.put('/api/kanban/tasks', task.toMap());
-  Future<void> delete(String id) => _adapter.delete('/api/kanban/tasks/$id');
+  Future<void> create(Task task) => _adapter.post('/api/v1/kanban/tasks', task.toMap());
+  Future<void> update(Task task) => _adapter.put('/api/v1/kanban/tasks/${task.id}', task.toMap());
+  Future<void> delete(String id) => _adapter.delete('/api/v1/kanban/tasks/$id');
 }
 
 /// Удалённый источник данных для колонок.
@@ -30,6 +39,7 @@ class TaskColumnRemoteSource {
   Future<List<TaskColumn>?> getAll() async {
     final data = await _adapter.syncKanban();
     if (data == null) return null;
+    print('Ответ сервера (columns): $data');
     final list = data['columns'];
     if (list is! List) return null;
     return list.map((e) => TaskColumn.fromMap(e as Map<String, dynamic>)).toList();
@@ -49,9 +59,9 @@ class NoteRemoteSource {
     return list.map((e) => Note.fromMap(e as Map<String, dynamic>)).toList();
   }
 
-  Future<void> create(Note note) => _adapter.put('/api/notes', note.toMap());
-  Future<void> update(Note note) => _adapter.put('/api/notes', note.toMap());
-  Future<void> delete(String id) => _adapter.delete('/api/notes/$id');
+  Future<void> create(Note note) => _adapter.post('/api/v1/notes', note.toMap());
+  Future<void> update(Note note) => _adapter.put('/api/v1/notes/${note.id}', note.toMap());
+  Future<void> delete(String id) => _adapter.delete('/api/v1/notes/$id');
 }
 
 /// Удалённый источник данных для сниппетов.
@@ -66,4 +76,8 @@ class SnippetRemoteSource {
     if (list is! List) return null;
     return list.map((e) => Snippet.fromMap(e as Map<String, dynamic>)).toList();
   }
+
+  Future<void> create(Snippet snippet) => _adapter.post('/api/v1/snippets', snippet.toMap());
+  Future<void> update(Snippet snippet) => _adapter.put('/api/v1/snippets/${snippet.id}', snippet.toMap());
+  Future<void> delete(String id) => _adapter.delete('/api/v1/snippets/$id');
 }

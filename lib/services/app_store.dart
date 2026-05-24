@@ -30,12 +30,14 @@ class AppStore extends ChangeNotifier {
   String? _serverUrl;
   String? _serverName;
   String? _userRole; // root | участник
+  String? _sessionToken;
   DateTime? _connectedAt;
 
   ServerConnectionState get connectionState => _connectionState;
   String? get serverUrl => _serverUrl;
   String? get serverName => _serverName;
   String? get userRole => _userRole;
+  String? get sessionToken => _sessionToken;
   DateTime? get connectedAt => _connectedAt;
   bool get isConnected => _connectionState == ServerConnectionState.connected;
 
@@ -92,6 +94,7 @@ class AppStore extends ChangeNotifier {
         _serverUrl = data['serverUrl'] as String?;
         _serverName = data['serverName'] as String?;
         _userRole = data['userRole'] as String?;
+        _sessionToken = data['sessionToken'] as String?;
         _connectionState = data['connectedAt'] != null
             ? ServerConnectionState.connected
             : ServerConnectionState.local;
@@ -123,6 +126,7 @@ class AppStore extends ChangeNotifier {
       'serverUrl': _serverUrl,
       'serverName': _serverName,
       'userRole': _userRole,
+      'sessionToken': _sessionToken,
       'connectedAt': _connectedAt?.toIso8601String(),
       'todayWorkSeconds': todayWorkSeconds,
       'weeklyWork': _weeklyWorkCache,
@@ -170,12 +174,20 @@ class AppStore extends ChangeNotifier {
     await _persist();
   }
 
+  /// Сохраняет session_token после рукопожатия.
+  Future<void> setSessionToken(String token) async {
+    _sessionToken = token;
+    notifyListeners();
+    await _persist();
+  }
+
   /// Сбрасывает подключение.
   Future<void> setDisconnected() async {
     _connectionState = ServerConnectionState.local;
     _serverUrl = null;
     _serverName = null;
     _userRole = null;
+    _sessionToken = null;
     _connectedAt = null;
     notifyListeners();
     await _persist();

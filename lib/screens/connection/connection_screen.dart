@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../services/app_store.dart';
 import '../../services/network_adapter.dart';
+import '../../services/sync_service.dart';
 
 /// Экран подключения к серверу POLARIS.
 class ConnectionScreen extends StatefulWidget {
@@ -133,6 +134,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                 _infoRow(theme, 'Подключено',
                     DateFormat('dd.MM.yyyy HH:mm', 'ru').format(store.connectedAt!)),
             ],
+            const SizedBox(height: 24),
+            // Синхронизация
+            _syncSection(theme, context, store),
           ],
         ),
       ),
@@ -191,6 +195,59 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _syncSection(ThemeData theme, BuildContext context, AppStore store) {
+    final syncService = context.watch<SyncService>();
+    final connected = context.watch<AntaresNetworkAdapter>().isConnected;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Синхронизация',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        if (syncService.lastMessage.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(syncService.lastMessage,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: syncService.state == SyncState.error
+                      ? Colors.red
+                      : syncService.state == SyncState.done
+                          ? Colors.green
+                          : null,
+                )),
+          ),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: FilledButton.tonalIcon(
+            onPressed: connected && syncService.state != SyncState.syncing
+                ? () => syncService.syncAll()
+                : null,
+            icon: syncService.state == SyncState.syncing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync),
+            label: Text(
+              syncService.state == SyncState.syncing
+                  ? 'Синхронизация...'
+                  : 'Синхронизировать всё'),
+          ),
+        ),
+        if (store.lastSyncAt != null) ...[
+          const SizedBox(height: 4),
+          Text('Последняя синхронизация: ${DateFormat('dd.MM.yyyy HH:mm', 'ru').format(store.lastSyncAt!)}',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        ],
+      ],
     );
   }
 }

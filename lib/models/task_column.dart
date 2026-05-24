@@ -27,9 +27,9 @@ class TaskColumn {
   };
 
   factory TaskColumn.fromMap(Map<String, dynamic> map) => TaskColumn(
-    id: map['id'] as String,
-    name: map['name'] as String,
-    statusKey: map['statusKey'] as String,
+    id: map['id']?.toString() ?? const Uuid().v4(),
+    name: map['name']?.toString() ?? '',
+    statusKey: map['statusKey']?.toString() ?? '',
     colorValue: map['colorValue'] as int? ?? 0xFF9E9E9E,
     sortOrder: map['sortOrder'] as int? ?? 0,
     isDefault: (map['isDefault'] as int? ?? 0) == 1,

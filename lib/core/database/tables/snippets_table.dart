@@ -11,6 +11,12 @@ class SnippetsTable {
     return maps.map((m) => Snippet.fromMap(m)).toList();
   }
 
+  Future<Snippet?> getById(String id) async {
+    final maps = await db.query('snippets', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (maps.isEmpty) return null;
+    return Snippet.fromMap(maps.first);
+  }
+
   Future<void> insert(Snippet snippet) async =>
       db.insert('snippets', snippet.toMap());
 
