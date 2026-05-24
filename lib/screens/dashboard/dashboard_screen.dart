@@ -56,7 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (!mounted) return;
     setState(() {
-      _inProgress = taskStats['inProgress'] ?? 0;
+      _inProgress = taskStats['in_progress'] ?? 0;
       _doneCount = taskStats['done'] ?? 0;
       _totalTasks = tasks.length;
       _doneToday = doneToday;

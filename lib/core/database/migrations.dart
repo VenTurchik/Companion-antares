@@ -148,7 +148,7 @@ class Migrations {
     ''');
     final cols = [
       {'id': const Uuid().v4(), 'name': 'To Do', 'statusKey': 'todo', 'colorValue': '#9E9E9E', 'sortOrder': 0, 'isDefault': 1},
-      {'id': const Uuid().v4(), 'name': 'In Progress', 'statusKey': 'inProgress', 'colorValue': '#2196F3', 'sortOrder': 1, 'isDefault': 1},
+      {'id': const Uuid().v4(), 'name': 'In Progress', 'statusKey': 'in_progress', 'colorValue': '#2196F3', 'sortOrder': 1, 'isDefault': 1},
       {'id': const Uuid().v4(), 'name': 'Done', 'statusKey': 'done', 'colorValue': '#4CAF50', 'sortOrder': 2, 'isDefault': 1},
     ];
     for (final col in cols) {

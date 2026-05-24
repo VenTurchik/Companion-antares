@@ -30,7 +30,6 @@ class AntaresNetworkAdapter extends ChangeNotifier {
       final data = utf8.encode('POLARIS_DISCOVERY');
       for (int port = 9876; port <= 9880; port++) {
         socket.send(data, InternetAddress('255.255.255.255'), port);
-        print('Отправлен запрос на порт $port');
       }
 
       await Future.delayed(const Duration(seconds: 3));
@@ -41,25 +40,20 @@ class AntaresNetworkAdapter extends ChangeNotifier {
           if (datagram != null) {
             try {
               final response = utf8.decode(datagram.data);
-              print('Получен ответ от ${datagram.address.address}:${datagram.port} — $response');
               final json = jsonDecode(response) as Map<String, dynamic>;
               results.add({
                 'name': json['server_name'] as String? ?? 'POLARIS',
                 'url': json['url'] as String? ?? 'http://${datagram.address.address}:8000',
                 'version': json['version'] as String? ?? '',
               });
-            } catch (e) {
-              print('Ошибка парсинга ответа: $e');
-            }
+            } catch (_) {}
           }
         }
       });
 
       await Future.delayed(const Duration(milliseconds: 500));
       socket.close();
-    } catch (e) {
-      print('Ошибка сканирования: $e');
-    }
+    } catch (_) {}
 
     return results;
   }
@@ -80,12 +74,6 @@ class AntaresNetworkAdapter extends ChangeNotifier {
       final uri = Uri.parse('$url/api/v1/handshake');
       final req = await _client!.postUrl(uri);
       req.headers.contentType = ContentType.json;
-      print('=== ДЕБАГ РУКОПОЖАТИЯ ===');
-      print('URL: $url/api/v1/handshake');
-      print('user_name: $username');
-      print('confirmation_code: $authCode');
-      print('========================');
-
       req.write(jsonEncode({
         'client_name': 'Antares',
         'client_version': '0.1.0',

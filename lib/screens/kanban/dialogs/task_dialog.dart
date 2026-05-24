@@ -81,6 +81,7 @@ Future<Map<String, String?>?> showTaskDialog(
               'title': titleCtrl.text,
               'description': descCtrl.text.isEmpty ? null : descCtrl.text,
               'commitHash': hashCtrl.text.isEmpty ? null : hashCtrl.text,
+              'statusKey': selectedStatus,
             }),
             child: const Text('Сохранить'),
           ),

@@ -30,7 +30,10 @@ class TaskRemoteSource {
       _adapter.postWithBody('/api/v1/kanban/tasks', data);
   Future<void> update(String id, Map<String, dynamic> data) =>
       _adapter.put('/api/v1/kanban/tasks/$id', data);
-  Future<void> move(String id, String newStatus) => _adapter.put('/api/v1/kanban/tasks/$id/move', {'status': newStatus});
+  Future<void> move(String id, String newStatus) {
+    print('Перемещаю задачу $id в статус: $newStatus');
+    return _adapter.put('/api/v1/kanban/tasks/$id/move', {'status': newStatus});
+  }
   Future<void> delete(String id) => _adapter.delete('/api/v1/kanban/tasks/$id');
 }
 
@@ -42,11 +45,19 @@ class TaskColumnRemoteSource {
   Future<List<TaskColumn>?> getAll() async {
     final data = await _adapter.syncKanban();
     if (data == null) return null;
-    print('Ответ сервера (columns): $data');
     final list = data['columns'];
     if (list is! List) return null;
     return list.map((e) => TaskColumn.fromMap(e as Map<String, dynamic>)).toList();
   }
+
+  Future<Map<String, dynamic>?> createColumn(Map<String, dynamic> data) =>
+      _adapter.postWithBody('/api/v1/kanban/columns', data);
+
+  Future<void> deleteColumn(String statusKey) =>
+      _adapter.delete('/api/v1/kanban/columns/$statusKey');
+
+  Future<void> updateColumn(String statusKey, Map<String, dynamic> data) =>
+      _adapter.put('/api/v1/kanban/columns/$statusKey', data);
 }
 
 /// Удалённый источник данных для заметок.

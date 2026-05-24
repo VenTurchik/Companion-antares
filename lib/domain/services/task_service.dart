@@ -71,14 +71,18 @@ class TaskService {
   Future<void> addColumn(TaskColumn column) => _columnRepo.insert(column);
 
   Future<void> deleteColumn(TaskColumn column) async {
-    if (column.isDefault) throw CannotDeleteDefaultColumnException();
-    // Удаляем все задачи в этой колонке
+    const defaultKeys = {'todo', 'in_progress', 'done'};
+    if (column.isDefault || defaultKeys.contains(column.statusKey)) {
+      throw CannotDeleteDefaultColumnException();
+    }
     final tasks = await _taskRepo.getAll();
     for (final t in tasks.where((t) => t.status == column.statusKey)) {
       await _taskRepo.delete(t.id);
     }
-    await _columnRepo.delete(column.id);
+    await _columnRepo.delete(column);
   }
+
+  Future<void> updateColumn(TaskColumn column) => _columnRepo.update(column);
 
   // ---- Заметки / Сниппеты (связанные) ----
 

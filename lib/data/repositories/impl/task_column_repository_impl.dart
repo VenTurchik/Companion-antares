@@ -26,13 +26,35 @@ class TaskColumnRepositoryImpl implements TaskColumnRepository {
 
   @override
   Future<void> insert(TaskColumn column) async {
-    if (_useRemote) return;
+    if (_useRemote) {
+      await _remote.createColumn({
+        'name': column.name,
+        'statusKey': column.statusKey,
+        'colorValue': column.colorValue,
+      });
+      return;
+    }
     await _db.taskColumns.insert(column);
   }
 
   @override
-  Future<void> delete(String id) async {
-    if (_useRemote) return;
-    await _db.taskColumns.delete(id);
+  Future<void> delete(TaskColumn column) async {
+    if (_useRemote) {
+      await _remote.deleteColumn(column.statusKey);
+      return;
+    }
+    await _db.taskColumns.delete(column.id);
+  }
+
+  @override
+  Future<void> update(TaskColumn column) async {
+    if (_useRemote) {
+      await _remote.updateColumn(column.statusKey, {
+        'name': column.name,
+        'colorValue': column.colorValue,
+      });
+      return;
+    }
+    await _db.taskColumns.update(column);
   }
 }

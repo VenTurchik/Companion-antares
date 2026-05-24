@@ -59,6 +59,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final seen = <String>{};
+    final uniqueTasks = _tasks.where((t) => seen.add(t.id));
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.note == null ? 'Новая заметка' : 'Редактировать'),
@@ -88,7 +91,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               items: [
                 const DropdownMenuItem(
                     value: null, child: Text('Без задачи')),
-                ..._tasks.map((t) => DropdownMenuItem(
+                ...uniqueTasks.map((t) => DropdownMenuItem(
                     value: t.id,
                     child: Text(t.title,
                         overflow: TextOverflow.ellipsis))),

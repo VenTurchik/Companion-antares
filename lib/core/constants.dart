@@ -2,7 +2,7 @@
 class TaskStatusKeys {
   TaskStatusKeys._();
   static const todo = 'todo';
-  static const inProgress = 'inProgress';
+  static const inProgress = 'in_progress';
   static const done = 'done';
 }
 

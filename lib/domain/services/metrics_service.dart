@@ -75,7 +75,7 @@ class MetricsService {
     final tasks = await _taskRepo.getAll();
     return {
       'total': tasks.length,
-      'inProgress': tasks.where((t) => t.status == TaskStatusKeys.inProgress).length,
+      TaskStatusKeys.inProgress: tasks.where((t) => t.status == TaskStatusKeys.inProgress).length,
       'done': tasks.where((t) => t.status == TaskStatusKeys.done).length,
     };
   }

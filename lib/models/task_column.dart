@@ -46,7 +46,7 @@ class TaskColumn {
     }
 
     return TaskColumn(
-      id: json['id']?.toString() ?? const Uuid().v4(),
+      id: json['id']?.toString() ?? json['statusKey']?.toString() ?? const Uuid().v4(),
       name: json['name'] as String? ?? '',
       statusKey: json['statusKey'] as String? ?? json['id']?.toString() ?? '',
       colorValue: colorStr,

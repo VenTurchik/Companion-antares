@@ -113,6 +113,7 @@ class _KanbanScreenState extends State<KanbanScreen> {
         title: result['title']!,
         description: result['description'],
         commitHash: result['commitHash'],
+        status: result['statusKey'] ?? 'todo',
       ));
       _load();
     }
@@ -132,6 +133,15 @@ class _KanbanScreenState extends State<KanbanScreen> {
   }
 
   Future<void> _deleteColumn(TaskColumn col) async {
+    const defaultKeys = {'todo', 'in_progress', 'done'};
+    if (col.isDefault || defaultKeys.contains(col.statusKey)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Нельзя удалить стандартную колонку')),
+        );
+      }
+      return;
+    }
     try {
       await context.read<TaskService>().deleteColumn(col);
       _load();
@@ -141,6 +151,16 @@ class _KanbanScreenState extends State<KanbanScreen> {
           SnackBar(content: Text(e.message)),
         );
       }
+    }
+  }
+
+  Future<void> _editColumn(TaskColumn col) async {
+    final result = await showEditColumnDialog(context, column: col);
+    if (result != null) {
+      col.name = result['name']!;
+      col.colorValue = result['colorValue']!;
+      await context.read<TaskService>().updateColumn(col);
+      _load();
     }
   }
 
@@ -212,6 +232,7 @@ class _KanbanScreenState extends State<KanbanScreen> {
         onArchive: (t) => _moveTask(t, 'done'),
         onMoveTask: _moveTask,
         onDeleteColumn: _deleteColumn,
+        onEditColumn: _editColumn,
       );
       case 1: return KanbanTableTab(
         tasks: _boardTasks(),

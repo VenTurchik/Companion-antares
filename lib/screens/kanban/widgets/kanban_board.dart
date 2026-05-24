@@ -3,6 +3,8 @@ import '../../../models/task.dart';
 import '../../../models/task_column.dart';
 import '../../../widgets/kanban_column.dart';
 
+const defaultStatusKeys = {'todo', 'in_progress', 'done'};
+
 /// Виджет доски канбана: рендерит колонки из TaskColumn, каждая показывает
 /// задачи с соответствующим statusKey.
 class KanbanBoard extends StatelessWidget {
@@ -15,6 +17,7 @@ class KanbanBoard extends StatelessWidget {
   final void Function(Task task)? onArchive;
   final Future<void> Function(Task task, String newStatusKey) onMoveTask;
   final Future<void> Function(TaskColumn col) onDeleteColumn;
+  final void Function(TaskColumn col)? onEditColumn;
 
   const KanbanBoard({
     super.key,
@@ -27,6 +30,7 @@ class KanbanBoard extends StatelessWidget {
     this.onArchive,
     required this.onMoveTask,
     required this.onDeleteColumn,
+    this.onEditColumn,
   });
 
   @override
@@ -53,13 +57,25 @@ class KanbanBoard extends StatelessWidget {
               onAccept: (t) => onMoveTask(t, col.statusKey),
               noteCounts: noteCounts,
               snippetCounts: snippetCounts,
-              headerTrailing: col.isDefault
+              headerTrailing: defaultStatusKeys.contains(col.statusKey)
                   ? null
-                  : IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 16),
-                      onPressed: () => onDeleteColumn(col),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (onEditColumn != null)
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, size: 16),
+                            onPressed: () => onEditColumn!(col),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 16),
+                          onPressed: () => onDeleteColumn(col),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
                     ),
             ),
           );
