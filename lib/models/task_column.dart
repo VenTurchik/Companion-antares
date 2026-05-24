@@ -32,6 +32,6 @@ class TaskColumn {
     statusKey: map['statusKey']?.toString() ?? '',
     colorValue: map['colorValue'] as int? ?? 0xFF9E9E9E,
     sortOrder: map['sortOrder'] as int? ?? 0,
-    isDefault: (map['isDefault'] as int? ?? 0) == 1,
+    isDefault: map['isDefault'] == true || map['isDefault'] == 1,
   );
 }

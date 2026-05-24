@@ -16,6 +16,7 @@ class ConnectionScreen extends StatefulWidget {
 class _ConnectionScreenState extends State<ConnectionScreen> {
   final _urlCtrl = TextEditingController();
   bool _connecting = false;
+  bool _scanning = false;
 
   @override
   void initState() {
@@ -51,6 +52,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           backgroundColor: ok ? Colors.green : Colors.red,
         ),
       );
+      if (ok) {
+        await adapter.getServerStats();
+      }
     }
   }
 
@@ -62,6 +66,50 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
         const SnackBar(content: Text('Отключено от сервера')),
       );
     }
+  }
+
+  Future<void> _scanNetwork() async {
+    setState(() => _scanning = true);
+    final servers = await AntaresNetworkAdapter.discover();
+    if (mounted) {
+      setState(() => _scanning = false);
+      if (servers.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Серверы не найдены')),
+        );
+      } else if (servers.length == 1) {
+        _urlCtrl.text = servers.first['url'] ?? '';
+      } else {
+        _showServerPicker(servers);
+      }
+    }
+  }
+
+  void _showServerPicker(List<Map<String, String>> servers) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Найденные серверы'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: servers.map((s) => ListTile(
+            leading: const Icon(Icons.dns),
+            title: Text(s['name'] ?? 'POLARIS'),
+            subtitle: Text(s['url'] ?? ''),
+            onTap: () {
+              _urlCtrl.text = s['url'] ?? '';
+              Navigator.of(ctx).pop();
+            },
+          )).toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Отмена'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -92,7 +140,27 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               enabled: !_connecting && !adapter.isConnected,
             ),
             const SizedBox(height: 16),
-            // Кнопка
+            // Кнопка сканирования сети
+            if (!adapter.isConnected)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    onPressed: _scanning ? null : _scanNetwork,
+                    icon: _scanning
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.wifi_find),
+                    label: Text(_scanning ? 'Сканирование...' : 'Сканировать сеть'),
+                  ),
+                ),
+              ),
+            // Кнопка подключения/отключения
             SizedBox(
               width: double.infinity,
               height: 48,
@@ -137,6 +205,10 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
             const SizedBox(height: 24),
             // Синхронизация
             _syncSection(theme, context, store),
+            const SizedBox(height: 24),
+            // Статистика сервера
+            if (adapter.isConnected && adapter.serverStats != null)
+              _statsSection(theme, adapter),
           ],
         ),
       ),
@@ -198,6 +270,62 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     );
   }
 
+  Widget _statsSection(ThemeData theme, AntaresNetworkAdapter adapter) {
+    final stats = adapter.serverStats;
+    if (stats == null) return const SizedBox.shrink();
+
+    final diskFree = _fmtBytes(stats['disk_free_gb']);
+    final diskTotal = _fmtBytes(stats['disk_total_gb']);
+    final dbSize = _fmtBytes(stats['db_size_mb'], unit: 'MB');
+    final kbSize = _fmtBytes(stats['knowledge_base_size_mb'], unit: 'MB');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Статистика сервера',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _statRow(Icons.storage, 'Диск', '$diskFree / $diskTotal GB'),
+                const SizedBox(height: 4),
+                _statRow(Icons.dns, 'БД', '$dbSize | База знаний: $kbSize'),
+                const SizedBox(height: 4),
+                _statRow(Icons.people, 'Пользователей',
+                    '${stats['users_count'] ?? 0}'),
+                const SizedBox(height: 4),
+                _statRow(Icons.assignment, 'Задачи',
+                    '${stats['tasks_count'] ?? 0} | Заметок: ${stats['notes_count'] ?? 0} | Сниппетов: ${stats['snippets_count'] ?? 0}'),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _fmtBytes(dynamic value, {String unit = 'GB'}) {
+    if (value == null) return '0.0';
+    final v = double.tryParse(value.toString()) ?? 0.0;
+    return v.toStringAsFixed(1);
+  }
+
+  Widget _statRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey),
+        const SizedBox(width: 8),
+        Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w500)),
+        Expanded(child: Text(value)),
+      ],
+    );
+  }
+
   Widget _syncSection(ThemeData theme, BuildContext context, AppStore store) {
     final syncService = context.watch<SyncService>();
     final connected = context.watch<AntaresNetworkAdapter>().isConnected;
@@ -226,7 +354,12 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           height: 48,
           child: FilledButton.tonalIcon(
             onPressed: connected && syncService.state != SyncState.syncing
-                ? () => syncService.syncAll()
+                ? () async {
+                    await syncService.syncAll();
+                    if (mounted) {
+                      context.read<AntaresNetworkAdapter>().getServerStats();
+                    }
+                  }
                 : null,
             icon: syncService.state == SyncState.syncing
                 ? const SizedBox(

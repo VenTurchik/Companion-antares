@@ -29,11 +29,15 @@ class Note {
   };
 
   factory Note.fromMap(Map<String, dynamic> map) => Note(
-    id: map['id'] as String,
-    title: map['title'] as String,
-    content: map['content'] as String,
-    taskId: map['taskId'] as String?,
-    createdAt: DateTime.parse(map['createdAt'] as String),
-    updatedAt: DateTime.parse(map['updatedAt'] as String),
+    id: map['id']?.toString() ?? const Uuid().v4(),
+    title: map['title']?.toString() ?? '',
+    content: map['content']?.toString() ?? '',
+    taskId: map['taskId']?.toString(),
+    createdAt: map['createdAt'] != null
+        ? DateTime.parse(map['createdAt'] as String)
+        : DateTime.now(),
+    updatedAt: map['updatedAt'] != null
+        ? DateTime.parse(map['updatedAt'] as String)
+        : DateTime.now(),
   );
 }

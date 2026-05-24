@@ -12,9 +12,47 @@ class AntaresNetworkAdapter extends ChangeNotifier {
 
   HttpClient? _client;
   bool _isConnecting = false;
+  Map<String, dynamic>? _serverStats;
 
   bool get isConnected => _store.isConnected;
   bool get isConnecting => _isConnecting;
+  Map<String, dynamic>? get serverStats => _serverStats;
+
+  /// UDP-сканирование сети для поиска POLARIS-серверов.
+  static Future<List<Map<String, String>>> discover() async {
+    final results = <Map<String, String>>[];
+
+    try {
+      final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+      socket.broadcastEnabled = true;
+
+      final data = utf8.encode('POLARIS_DISCOVERY');
+      socket.send(data, InternetAddress('255.255.255.255'), 9876);
+      socket.send(data, InternetAddress('255.255.255.255'), 9877);
+      socket.send(data, InternetAddress('255.255.255.255'), 9878);
+
+      await Future.delayed(const Duration(seconds: 2));
+
+      socket.listen((event) {
+        if (event == RawSocketEvent.read) {
+          final datagram = socket.receive();
+          if (datagram != null) {
+            try {
+              final response = jsonDecode(utf8.decode(datagram.data));
+              results.add({
+                'name': response['server_name']?.toString() ?? 'POLARIS',
+                'url': response['url']?.toString() ?? 'http://${datagram.address.address}:8000',
+              });
+            } catch (_) {}
+          }
+        }
+      });
+
+      socket.close();
+    } catch (_) {}
+
+    return results;
+  }
 
   /// Подключается к POLARIS по URL.
   Future<bool> connect(String url) async {
@@ -82,6 +120,16 @@ class AntaresNetworkAdapter extends ChangeNotifier {
 
   /// Синхронизация сниппетов.
   Future<Map<String, dynamic>?> syncSnippets() => _get('/api/v1/snippets');
+
+  /// Получает статистику сервера.
+  Future<Map<String, dynamic>?> getServerStats() async {
+    final data = await _get('/api/v1/server-stats');
+    if (data != null) {
+      _serverStats = data;
+      notifyListeners();
+    }
+    return data;
+  }
 
   /// POST запрос.
   Future<bool> post(String path, Map<String, dynamic> data) => _post(path, data);

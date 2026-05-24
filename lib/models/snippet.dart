@@ -33,12 +33,16 @@ class Snippet {
   };
 
   factory Snippet.fromMap(Map<String, dynamic> map) => Snippet(
-    id: map['id'] as String,
-    title: map['title'] as String,
-    code: map['code'] as String,
-    language: map['language'] as String,
-    tags: (jsonDecode(map['tags'] as String) as List).cast<String>(),
-    noteId: map['noteId'] as String?,
-    createdAt: DateTime.parse(map['createdAt'] as String),
+    id: map['id']?.toString() ?? const Uuid().v4(),
+    title: map['title']?.toString() ?? '',
+    code: map['code']?.toString() ?? '',
+    language: map['language']?.toString() ?? '',
+    tags: map['tags'] != null
+        ? (jsonDecode(map['tags'] as String) as List).cast<String>()
+        : [],
+    noteId: map['noteId']?.toString(),
+    createdAt: map['createdAt'] != null
+        ? DateTime.parse(map['createdAt'] as String)
+        : DateTime.now(),
   );
 }

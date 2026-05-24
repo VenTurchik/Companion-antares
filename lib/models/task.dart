@@ -39,16 +39,20 @@ class Task {
   };
 
   factory Task.fromMap(Map<String, dynamic> map) => Task(
-    id: map['id'] as String,
-    taskNumber: map['taskNumber'] as String? ?? 'TASK-0000',
-    title: map['title'] as String,
-    description: map['description'] as String?,
-    status: map['status'] as String? ?? 'todo',
-    commitHash: map['commitHash'] as String?,
-    createdAt: DateTime.parse(map['createdAt'] as String),
-    updatedAt: DateTime.parse(map['updatedAt'] as String),
+    id: map['id']?.toString() ?? const Uuid().v4(),
+    taskNumber: map['taskNumber']?.toString() ?? 'TASK-0000',
+    title: map['title']?.toString() ?? '',
+    description: map['description']?.toString(),
+    status: map['status']?.toString() ?? 'todo',
+    commitHash: map['commitHash']?.toString(),
+    createdAt: map['createdAt'] != null
+        ? DateTime.parse(map['createdAt'] as String)
+        : DateTime.now(),
+    updatedAt: map['updatedAt'] != null
+        ? DateTime.parse(map['updatedAt'] as String)
+        : DateTime.now(),
     completedAt: map['completedAt'] != null
-        ? DateTime.parse(map['completedAt'] as String)
+        ? DateTime.tryParse(map['completedAt'] as String)
         : null,
   );
 }
