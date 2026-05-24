@@ -21,35 +21,45 @@ class AntaresNetworkAdapter extends ChangeNotifier {
   /// UDP-сканирование сети для поиска POLARIS-серверов.
   static Future<List<Map<String, String>>> discover() async {
     final results = <Map<String, String>>[];
+    RawDatagramSocket? socket;
 
     try {
-      final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+      socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
       socket.broadcastEnabled = true;
 
       final data = utf8.encode('POLARIS_DISCOVERY');
-      socket.send(data, InternetAddress('255.255.255.255'), 9876);
-      socket.send(data, InternetAddress('255.255.255.255'), 9877);
-      socket.send(data, InternetAddress('255.255.255.255'), 9878);
+      for (int port = 9876; port <= 9880; port++) {
+        socket.send(data, InternetAddress('255.255.255.255'), port);
+        print('Отправлен запрос на порт $port');
+      }
 
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 3));
 
       socket.listen((event) {
         if (event == RawSocketEvent.read) {
-          final datagram = socket.receive();
+          final datagram = socket!.receive();
           if (datagram != null) {
             try {
-              final response = jsonDecode(utf8.decode(datagram.data));
+              final response = utf8.decode(datagram.data);
+              print('Получен ответ от ${datagram.address.address}:${datagram.port} — $response');
+              final json = jsonDecode(response) as Map<String, dynamic>;
               results.add({
-                'name': response['server_name']?.toString() ?? 'POLARIS',
-                'url': response['url']?.toString() ?? 'http://${datagram.address.address}:8000',
+                'name': json['server_name'] as String? ?? 'POLARIS',
+                'url': json['url'] as String? ?? 'http://${datagram.address.address}:8000',
+                'version': json['version'] as String? ?? '',
               });
-            } catch (_) {}
+            } catch (e) {
+              print('Ошибка парсинга ответа: $e');
+            }
           }
         }
       });
 
+      await Future.delayed(const Duration(milliseconds: 500));
       socket.close();
-    } catch (_) {}
+    } catch (e) {
+      print('Ошибка сканирования: $e');
+    }
 
     return results;
   }
@@ -112,14 +122,17 @@ class AntaresNetworkAdapter extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Экспорт всех данных с сервера одной пачкой.
+  Future<Map<String, dynamic>?> syncExport() => _get('/api/v1/export');
+
   /// Синхронизация канбана.
   Future<Map<String, dynamic>?> syncKanban() => _get('/api/v1/kanban/columns?board_id=1');
 
   /// Синхронизация заметок.
-  Future<Map<String, dynamic>?> syncNotes() => _get('/api/v1/notes');
+  Future<List<dynamic>?> syncNotes() => _getList('/api/v1/notes');
 
   /// Синхронизация сниппетов.
-  Future<Map<String, dynamic>?> syncSnippets() => _get('/api/v1/snippets');
+  Future<List<dynamic>?> syncSnippets() => _getList('/api/v1/snippets');
 
   /// Получает статистику сервера.
   Future<Map<String, dynamic>?> getServerStats() async {
@@ -131,14 +144,44 @@ class AntaresNetworkAdapter extends ChangeNotifier {
     return data;
   }
 
-  /// POST запрос.
-  Future<bool> post(String path, Map<String, dynamic> data) => _post(path, data);
+  /// Сброс БД сервера (только root).
+  Future<bool> resetServerDb() async {
+    return (await _post('/api/v1/admin/reset-db', {})) != null;
+  }
+
+  /// POST запрос (возвращает true при успехе).
+  Future<bool> post(String path, Map<String, dynamic> data) async {
+    return (await _post(path, data)) != null;
+  }
+
+  /// POST запрос с возвратом тела ответа (для create операций).
+  Future<Map<String, dynamic>?> postWithBody(String path, Map<String, dynamic> data) =>
+      _post(path, data);
 
   /// PUT запрос.
   Future<bool> put(String path, Map<String, dynamic> data) => _put(path, data);
 
   /// DELETE запрос.
   Future<bool> delete(String path) => _delete(path);
+
+  Future<List<dynamic>?> _getList(String path) async {
+    if (_client == null || !isConnected) return null;
+    try {
+      final uri = Uri.parse('${_store.serverUrl}$path');
+      final req = await _client!.getUrl(uri);
+      _attachAuth(req);
+      final res = await req.close();
+      if (res.statusCode == 200) {
+        final body = await res.transform(utf8.decoder).join();
+        return jsonDecode(body) as List<dynamic>;
+      }
+      final body = await res.transform(utf8.decoder).join();
+      print('GET $path -> ${res.statusCode}: $body');
+    } catch (e) {
+      print('GET $path error: $e');
+    }
+    return null;
+  }
 
   Future<Map<String, dynamic>?> _get(String path) async {
     if (_client == null || !isConnected) return null;
@@ -151,12 +194,16 @@ class AntaresNetworkAdapter extends ChangeNotifier {
         final body = await res.transform(utf8.decoder).join();
         return jsonDecode(body) as Map<String, dynamic>;
       }
-    } catch (_) {}
+      final body = await res.transform(utf8.decoder).join();
+      print('GET $path -> ${res.statusCode}: $body');
+    } catch (e) {
+      print('GET $path error: $e');
+    }
     return null;
   }
 
-  Future<bool> _post(String path, Map<String, dynamic> data) async {
-    if (_client == null || !isConnected) return false;
+  Future<Map<String, dynamic>?> _post(String path, Map<String, dynamic> data) async {
+    if (_client == null || !isConnected) return null;
     try {
       final uri = Uri.parse('${_store.serverUrl}$path');
       final req = await _client!.postUrl(uri);
@@ -164,9 +211,19 @@ class AntaresNetworkAdapter extends ChangeNotifier {
       _attachAuth(req);
       req.write(jsonEncode(data));
       final res = await req.close();
-      return res.statusCode == 200 || res.statusCode == 201;
-    } catch (_) {
-      return false;
+      final ok = res.statusCode == 200 || res.statusCode == 201;
+      final body = await res.transform(utf8.decoder).join();
+      if (ok) {
+        if (body.isEmpty) return {};
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) return decoded;
+        return {};
+      }
+      print('POST $path -> ${res.statusCode}: $body');
+      return null;
+    } catch (e) {
+      print('POST $path error: $e');
+      return null;
     }
   }
 
@@ -179,8 +236,14 @@ class AntaresNetworkAdapter extends ChangeNotifier {
       _attachAuth(req);
       req.write(jsonEncode(data));
       final res = await req.close();
-      return res.statusCode == 200 || res.statusCode == 201;
-    } catch (_) {
+      final ok = res.statusCode == 200 || res.statusCode == 201;
+      if (!ok) {
+        final body = await res.transform(utf8.decoder).join();
+        print('PUT $path -> ${res.statusCode}: $body');
+      }
+      return ok;
+    } catch (e) {
+      print('PUT $path error: $e');
       return false;
     }
   }
@@ -192,8 +255,14 @@ class AntaresNetworkAdapter extends ChangeNotifier {
       final req = await _client!.deleteUrl(uri);
       _attachAuth(req);
       final res = await req.close();
-      return res.statusCode == 200;
-    } catch (_) {
+      final ok = res.statusCode == 200;
+      if (!ok) {
+        final body = await res.transform(utf8.decoder).join();
+        print('DELETE $path -> ${res.statusCode}: $body');
+      }
+      return ok;
+    } catch (e) {
+      print('DELETE $path error: $e');
       return false;
     }
   }

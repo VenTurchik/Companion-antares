@@ -22,7 +22,6 @@ import 'services/work_timer_service.dart';
 import 'services/app_store.dart';
 import 'services/tray_service.dart';
 import 'services/network_adapter.dart';
-import 'services/sync_service.dart';
 import 'app.dart';
 
 void main() async {
@@ -55,9 +54,6 @@ void main() async {
   final taskService = TaskService(taskRepo, noteRepo, snippetRepo, columnRepo);
   final metricsService = MetricsService(activityRepo, workRepo, taskRepo);
 
-  // === Синхронизация ===
-  final syncService = SyncService(networkAdapter, db, store);
-
   // === ChangeNotifier-сервисы ===
   final settings = SettingsService();
   await settings.init();
@@ -71,7 +67,6 @@ void main() async {
         ChangeNotifierProvider.value(value: timer),
         ChangeNotifierProvider.value(value: store),
         ChangeNotifierProvider.value(value: networkAdapter),
-        ChangeNotifierProvider.value(value: syncService),
         Provider<TaskService>.value(value: taskService),
         Provider<MetricsService>.value(value: metricsService),
       ],

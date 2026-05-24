@@ -209,6 +209,7 @@ class _KanbanScreenState extends State<KanbanScreen> {
         snippetCounts: snippetCounts,
         onTap: _showDetail,
         onDelete: _delete,
+        onArchive: (t) => _moveTask(t, 'done'),
         onMoveTask: _moveTask,
         onDeleteColumn: _deleteColumn,
       );

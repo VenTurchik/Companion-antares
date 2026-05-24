@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/task_column.dart';
 import '../../../models/task.dart';
-import '../../../core/constants.dart';
 
 /// Диалог создания/редактирования задачи.
 Future<Map<String, String?>?> showTaskDialog(
@@ -12,7 +11,13 @@ Future<Map<String, String?>?> showTaskDialog(
   final titleCtrl = TextEditingController(text: task?.title ?? '');
   final descCtrl = TextEditingController(text: task?.description ?? '');
   final hashCtrl = TextEditingController(text: task?.commitHash ?? '');
-  String selectedStatus = TaskStatusKeys.todo;
+  final uniqueColumns = <String, TaskColumn>{};
+  for (final col in columns) {
+    uniqueColumns[col.statusKey] = col;
+  }
+  final statuses = uniqueColumns.keys.toList();
+  String selectedStatus = task?.status ?? statuses.first;
+  if (!statuses.contains(selectedStatus)) selectedStatus = statuses.first;
 
   return showDialog<Map<String, String?>>(
     context: context,
@@ -40,22 +45,25 @@ Future<Map<String, String?>?> showTaskDialog(
               DropdownButtonFormField<String>(
                 initialValue: selectedStatus,
                 decoration: const InputDecoration(labelText: 'Колонка'),
-                items: columns.map((c) => DropdownMenuItem(
-                  value: c.statusKey,
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 12, height: 12,
-                        decoration: BoxDecoration(
-                          color: Color(c.colorValue),
-                          shape: BoxShape.circle,
+                items: statuses.map((status) {
+                  final col = uniqueColumns[status]!;
+                  return DropdownMenuItem(
+                    value: status,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12, height: 12,
+                          decoration: BoxDecoration(
+                            color: col.color,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(c.name),
-                    ],
-                  ),
-                )).toList(),
+                        const SizedBox(width: 8),
+                        Text(col.name),
+                      ],
+                    ),
+                  );
+                }).toList(),
                 onChanged: (v) {
                   if (v != null) setDialogState(() => selectedStatus = v);
                 },

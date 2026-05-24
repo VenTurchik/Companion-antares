@@ -59,13 +59,15 @@ class Migrations {
         taskId TEXT
       )
     ''');
+    await _createIdMappingsTable(db);
   }
 
-  /// Прогрев версий с 1 до 4.
+  /// Прогрев версий с 1 до 5.
   static Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) await _v1ToV2(db);
     if (oldVersion < 3) await _v2ToV3(db);
     if (oldVersion < 4) await _v3ToV4(db);
+    if (oldVersion < 5) await _v4ToV5(db);
   }
 
   static Future<void> _v1ToV2(Database db) async {
@@ -102,7 +104,7 @@ class Migrations {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         statusKey TEXT NOT NULL,
-        colorValue INTEGER NOT NULL DEFAULT 0xFF9E9E9E,
+        colorValue TEXT NOT NULL DEFAULT '#9E9E9E',
         sortOrder INTEGER NOT NULL DEFAULT 0,
         isDefault INTEGER NOT NULL DEFAULT 0
       )
@@ -113,21 +115,41 @@ class Migrations {
     }
   }
 
+  /// Миграция 4→5: таблица маппинга ID (локальный UUID → удалённый ID).
+  static Future<void> _v4ToV5(Database db) async {
+    await _createIdMappingsTable(db);
+  }
+
+  static Future<void> _createIdMappingsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS id_mappings (
+        local_id TEXT NOT NULL,
+        remote_id TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        PRIMARY KEY (local_id, entity_type)
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_id_mappings_lookup
+      ON id_mappings(entity_type, remote_id)
+    ''');
+  }
+
   static Future<void> _createTaskColumnsWithDefaults(Database db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS task_columns (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         statusKey TEXT NOT NULL,
-        colorValue INTEGER NOT NULL DEFAULT 0xFF9E9E9E,
+        colorValue TEXT NOT NULL DEFAULT '#9E9E9E',
         sortOrder INTEGER NOT NULL DEFAULT 0,
         isDefault INTEGER NOT NULL DEFAULT 0
       )
     ''');
     final cols = [
-      {'id': const Uuid().v4(), 'name': 'To Do', 'statusKey': 'todo', 'colorValue': 0xFF9E9E9E, 'sortOrder': 0, 'isDefault': 1},
-      {'id': const Uuid().v4(), 'name': 'In Progress', 'statusKey': 'inProgress', 'colorValue': 0xFF2196F3, 'sortOrder': 1, 'isDefault': 1},
-      {'id': const Uuid().v4(), 'name': 'Done', 'statusKey': 'done', 'colorValue': 0xFF4CAF50, 'sortOrder': 2, 'isDefault': 1},
+      {'id': const Uuid().v4(), 'name': 'To Do', 'statusKey': 'todo', 'colorValue': '#9E9E9E', 'sortOrder': 0, 'isDefault': 1},
+      {'id': const Uuid().v4(), 'name': 'In Progress', 'statusKey': 'inProgress', 'colorValue': '#2196F3', 'sortOrder': 1, 'isDefault': 1},
+      {'id': const Uuid().v4(), 'name': 'Done', 'statusKey': 'done', 'colorValue': '#4CAF50', 'sortOrder': 2, 'isDefault': 1},
     ];
     for (final col in cols) {
       await db.insert('task_columns', col);

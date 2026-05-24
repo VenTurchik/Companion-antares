@@ -1,3 +1,4 @@
+import 'package:uuid/uuid.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../models/task.dart';
 import '../../../models/activity.dart';
@@ -20,7 +21,40 @@ class TaskRepositoryImpl implements TaskRepository {
   Future<List<Task>> getAll() async {
     if (_useRemote) {
       final remote = await _remote.getAll();
-      return remote ?? [];
+      if (remote == null) return [];
+      final mappings = await _db.idMappings.getAllMappings('task');
+      final result = <Task>[];
+      for (final t in remote) {
+        final localId = mappings[t.id];
+        if (localId != null) {
+          result.add(Task(
+            id: localId,
+            taskNumber: t.taskNumber,
+            title: t.title,
+            description: t.description,
+            status: t.status,
+            commitHash: t.commitHash,
+            createdAt: t.createdAt,
+            updatedAt: t.updatedAt,
+            completedAt: t.completedAt,
+          ));
+        } else {
+          final newId = const Uuid().v4();
+          await _db.idMappings.save(newId, t.id, 'task');
+          result.add(Task(
+            id: newId,
+            taskNumber: t.taskNumber,
+            title: t.title,
+            description: t.description,
+            status: t.status,
+            commitHash: t.commitHash,
+            createdAt: t.createdAt,
+            updatedAt: t.updatedAt,
+            completedAt: t.completedAt,
+          ));
+        }
+      }
+      return result;
     }
     return _db.tasks.getAll();
   }
@@ -28,15 +62,12 @@ class TaskRepositoryImpl implements TaskRepository {
   @override
   Future<Task?> getById(String id) async {
     if (_useRemote) {
-      final tasks = await _remote.getAll();
-      if (tasks != null) {
-        try {
-          return tasks.firstWhere((t) => t.id == id);
-        } catch (_) {
-          return null;
-        }
+      final tasks = await getAll();
+      try {
+        return tasks.firstWhere((t) => t.id == id);
+      } catch (_) {
+        return null;
       }
-      return null;
     }
     return _db.tasks.getById(id);
   }
@@ -44,7 +75,11 @@ class TaskRepositoryImpl implements TaskRepository {
   @override
   Future<void> create(Task task) async {
     if (_useRemote) {
-      await _remote.create(task);
+      final response = await _remote.create(task.toCreateMap(1));
+      final remoteId = response?['id']?.toString();
+      if (remoteId != null) {
+        await _db.idMappings.save(task.id, remoteId, 'task');
+      }
       return;
     }
     task.taskNumber = await _db.tasks.nextTaskNumber();
@@ -55,7 +90,10 @@ class TaskRepositoryImpl implements TaskRepository {
   @override
   Future<void> update(Task task) async {
     if (_useRemote) {
-      await _remote.update(task);
+      final remoteId = await _db.idMappings.getRemoteId('task', task.id);
+      if (remoteId != null) {
+        await _remote.update(remoteId, task.toUpdateMap());
+      }
       return;
     }
     if (task.status == 'done' && task.completedAt == null) {
@@ -69,9 +107,29 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   @override
+  Future<void> move(String id, String newStatus) async {
+    if (_useRemote) {
+      final remoteId = await _db.idMappings.getRemoteId('task', id);
+      if (remoteId != null) {
+        await _remote.move(remoteId, newStatus);
+      }
+      return;
+    }
+    final task = await _db.tasks.getById(id);
+    if (task != null) {
+      task.status = newStatus;
+      await _db.tasks.update(task);
+    }
+  }
+
+  @override
   Future<void> delete(String id) async {
     if (_useRemote) {
-      await _remote.delete(id);
+      final remoteId = await _db.idMappings.getRemoteId('task', id);
+      if (remoteId != null) {
+        await _remote.delete(remoteId);
+        await _db.idMappings.deleteByLocalId('task', id);
+      }
       return;
     }
     await _db.tasks.delete(id);

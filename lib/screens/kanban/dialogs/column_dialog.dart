@@ -60,7 +60,7 @@ Future<Map<String, dynamic>?> showColumnDialog(BuildContext context) {
               Navigator.pop(ctx, {
                 'name': nameCtrl.text.trim(),
                 'statusKey': keyCtrl.text.trim(),
-                'colorValue': pickedColor.toARGB32(),
+                'colorValue': '#${pickedColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
               });
             },
             child: const Text('Добавить'),

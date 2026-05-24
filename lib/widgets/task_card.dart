@@ -7,6 +7,7 @@ class TaskCard extends StatelessWidget {
   final Color statusColor;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final VoidCallback? onArchive;
   final int noteCount;
   final int snippetCount;
 
@@ -16,6 +17,7 @@ class TaskCard extends StatelessWidget {
     this.statusColor = Colors.grey,
     required this.onTap,
     required this.onDelete,
+    this.onArchive,
     this.noteCount = 0,
     this.snippetCount = 0,
   });
@@ -94,13 +96,31 @@ class TaskCard extends StatelessWidget {
                   ],
                 ),
               ),
-              SizedBox(
-                width: 24,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  onPressed: onDelete,
-                ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (task.status != 'done' && onArchive != null)
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.check_circle_outline,
+                            size: 18, color: Colors.green),
+                        onPressed: onArchive,
+                        tooltip: 'Завершить',
+                      ),
+                    ),
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      onPressed: onDelete,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

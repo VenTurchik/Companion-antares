@@ -31,7 +31,7 @@ class KanbanTableTab extends StatelessWidget {
             leading: Container(
               width: 4, height: 32,
               decoration: BoxDecoration(
-                color: col != null ? Color(col.colorValue) : Colors.grey,
+                color: col != null ? col.color : Colors.grey,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

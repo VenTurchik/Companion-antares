@@ -26,8 +26,11 @@ class TaskRemoteSource {
     return tasks;
   }
 
-  Future<void> create(Task task) => _adapter.post('/api/v1/kanban/tasks', task.toMap());
-  Future<void> update(Task task) => _adapter.put('/api/v1/kanban/tasks/${task.id}', task.toMap());
+  Future<Map<String, dynamic>?> create(Map<String, dynamic> data) =>
+      _adapter.postWithBody('/api/v1/kanban/tasks', data);
+  Future<void> update(String id, Map<String, dynamic> data) =>
+      _adapter.put('/api/v1/kanban/tasks/$id', data);
+  Future<void> move(String id, String newStatus) => _adapter.put('/api/v1/kanban/tasks/$id/move', {'status': newStatus});
   Future<void> delete(String id) => _adapter.delete('/api/v1/kanban/tasks/$id');
 }
 
@@ -54,13 +57,13 @@ class NoteRemoteSource {
   Future<List<Note>?> getAll() async {
     final data = await _adapter.syncNotes();
     if (data == null) return null;
-    final list = data['notes'];
-    if (list is! List) return null;
-    return list.map((e) => Note.fromMap(e as Map<String, dynamic>)).toList();
+    return data.map((e) => Note.fromMap(e as Map<String, dynamic>)).toList();
   }
 
-  Future<void> create(Note note) => _adapter.post('/api/v1/notes', note.toMap());
-  Future<void> update(Note note) => _adapter.put('/api/v1/notes/${note.id}', note.toMap());
+  Future<Map<String, dynamic>?> create(Map<String, dynamic> data) =>
+      _adapter.postWithBody('/api/v1/notes', data);
+  Future<void> update(String id, Map<String, dynamic> data) =>
+      _adapter.put('/api/v1/notes/$id', data);
   Future<void> delete(String id) => _adapter.delete('/api/v1/notes/$id');
 }
 
@@ -72,12 +75,12 @@ class SnippetRemoteSource {
   Future<List<Snippet>?> getAll() async {
     final data = await _adapter.syncSnippets();
     if (data == null) return null;
-    final list = data['snippets'];
-    if (list is! List) return null;
-    return list.map((e) => Snippet.fromMap(e as Map<String, dynamic>)).toList();
+    return data.map((e) => Snippet.fromMap(e as Map<String, dynamic>)).toList();
   }
 
-  Future<void> create(Snippet snippet) => _adapter.post('/api/v1/snippets', snippet.toMap());
-  Future<void> update(Snippet snippet) => _adapter.put('/api/v1/snippets/${snippet.id}', snippet.toMap());
+  Future<Map<String, dynamic>?> create(Map<String, dynamic> data) =>
+      _adapter.postWithBody('/api/v1/snippets', data);
+  Future<void> update(String id, Map<String, dynamic> data) =>
+      _adapter.put('/api/v1/snippets/$id', data);
   Future<void> delete(String id) => _adapter.delete('/api/v1/snippets/$id');
 }

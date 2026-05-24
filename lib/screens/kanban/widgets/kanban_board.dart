@@ -12,6 +12,7 @@ class KanbanBoard extends StatelessWidget {
   final Map<String, int> snippetCounts;
   final void Function(Task task) onTap;
   final void Function(Task task) onDelete;
+  final void Function(Task task)? onArchive;
   final Future<void> Function(Task task, String newStatusKey) onMoveTask;
   final Future<void> Function(TaskColumn col) onDeleteColumn;
 
@@ -23,6 +24,7 @@ class KanbanBoard extends StatelessWidget {
     required this.snippetCounts,
     required this.onTap,
     required this.onDelete,
+    this.onArchive,
     required this.onMoveTask,
     required this.onDeleteColumn,
   });
@@ -43,10 +45,11 @@ class KanbanBoard extends StatelessWidget {
             width: 280,
             child: KanbanColumn(
               title: col.name,
-              color: Color(col.colorValue),
+              color: col.color,
               tasks: colTasks,
               onTap: onTap,
               onDelete: onDelete,
+              onArchive: onArchive,
               onAccept: (t) => onMoveTask(t, col.statusKey),
               noteCounts: noteCounts,
               snippetCounts: snippetCounts,

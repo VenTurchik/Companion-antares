@@ -38,6 +38,19 @@ class Task {
     'completedAt': completedAt?.toIso8601String(),
   };
 
+  Map<String, dynamic> toCreateMap(int boardId) => {
+    'board_id': boardId,
+    'title': title,
+    'description': description ?? '',
+    'status': status,
+  };
+
+  Map<String, dynamic> toUpdateMap() => {
+    'title': title,
+    'description': description ?? '',
+    'status': status,
+  };
+
   factory Task.fromMap(Map<String, dynamic> map) => Task(
     id: map['id']?.toString() ?? const Uuid().v4(),
     taskNumber: map['taskNumber']?.toString() ?? 'TASK-0000',

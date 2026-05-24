@@ -21,9 +21,23 @@ class AppStore extends ChangeNotifier {
   // --- Данные пользователя ---
   String userId = const Uuid().v4();
   String? authToken;
+  String? localDbPath;
   String? refreshToken;
-  DateTime? lastSyncAt;
   String? syncServerUrl;
+
+  // --- Последние серверы ---
+  List<String> _recentServers = [];
+
+  List<String> get recentServers => List.unmodifiable(_recentServers);
+
+  void addRecentServer(String url) {
+    _recentServers.remove(url);
+    _recentServers.insert(0, url);
+    if (_recentServers.length > 10) {
+      _recentServers = _recentServers.sublist(0, 10);
+    }
+    notifyListeners();
+  }
 
   // --- Данные подключения к POLARIS ---
   ServerConnectionState _connectionState = ServerConnectionState.local;
@@ -89,14 +103,14 @@ class AppStore extends ChangeNotifier {
         userId = data['userId'] as String? ?? userId;
         authToken = data['authToken'] as String?;
         refreshToken = data['refreshToken'] as String?;
-        lastSyncAt = data['lastSyncAt'] != null
-            ? DateTime.parse(data['lastSyncAt'] as String)
-            : null;
         syncServerUrl = data['syncServerUrl'] as String?;
         _serverUrl = data['serverUrl'] as String?;
         _serverName = data['serverName'] as String?;
         _userRole = data['userRole'] as String?;
         _sessionToken = data['sessionToken'] as String?;
+        if (data['recentServers'] is List) {
+          _recentServers = (data['recentServers'] as List).cast<String>();
+        }
         _connectionState = data['connectedAt'] != null
             ? ServerConnectionState.connected
             : ServerConnectionState.local;
@@ -123,8 +137,8 @@ class AppStore extends ChangeNotifier {
       'userId': userId,
       'authToken': authToken,
       'refreshToken': refreshToken,
-      'lastSyncAt': lastSyncAt?.toIso8601String(),
       'syncServerUrl': syncServerUrl,
+      'recentServers': _recentServers,
       'serverUrl': _serverUrl,
       'serverName': _serverName,
       'userRole': _userRole,
@@ -151,12 +165,6 @@ class AppStore extends ChangeNotifier {
     await _persist();
   }
 
-  Future<void> markSynced() async {
-    lastSyncAt = DateTime.now();
-    notifyListeners();
-    await _persist();
-  }
-
   /// Сохраняет данные пользователя после онбординга.
   Future<void> setUserData(String name, String code) async {
     userId = name;
@@ -170,6 +178,7 @@ class AppStore extends ChangeNotifier {
     _connectionState = ServerConnectionState.connected;
     _serverUrl = url;
     _serverName = name;
+    addRecentServer(url);
     _userRole = role;
     _connectedAt = DateTime.now();
     notifyListeners();

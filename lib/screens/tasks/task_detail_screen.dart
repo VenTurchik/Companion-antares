@@ -169,7 +169,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     Container(
                       width: 12, height: 12,
                       decoration: BoxDecoration(
-                        color: Color(c.colorValue),
+                        color: c.color,
                         shape: BoxShape.circle,
                       ),
                     ),

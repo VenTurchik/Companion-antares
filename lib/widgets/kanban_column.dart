@@ -8,6 +8,7 @@ class KanbanColumn extends StatelessWidget {
   final List<Task> tasks;
   final void Function(Task task) onTap;
   final void Function(Task task) onDelete;
+  final void Function(Task task)? onArchive;
   final void Function(Task task) onAccept;
   final Map<String, int> noteCounts;
   final Map<String, int> snippetCounts;
@@ -20,6 +21,7 @@ class KanbanColumn extends StatelessWidget {
     required this.tasks,
     required this.onTap,
     required this.onDelete,
+    this.onArchive,
     required this.onAccept,
     this.noteCounts = const {},
     this.snippetCounts = const {},
@@ -83,6 +85,7 @@ class KanbanColumn extends StatelessWidget {
                             task: task,
                             onTap: () {},
                             onDelete: () {},
+                            onArchive: onArchive != null ? () => onArchive!(task) : null,
                             noteCount: noteCounts[task.id] ?? 0,
                             snippetCount: snippetCounts[task.id] ?? 0,
                           ),
@@ -94,6 +97,7 @@ class KanbanColumn extends StatelessWidget {
                           task: task,
                           onTap: () {},
                           onDelete: () {},
+                          onArchive: onArchive != null ? () => onArchive!(task) : null,
                           noteCount: noteCounts[task.id] ?? 0,
                           snippetCount: snippetCounts[task.id] ?? 0,
                         ),
@@ -102,6 +106,7 @@ class KanbanColumn extends StatelessWidget {
                         task: task,
                         onTap: () => onTap(task),
                         onDelete: () => onDelete(task),
+                        onArchive: onArchive != null ? () => onArchive!(task) : null,
                         noteCount: noteCounts[task.id] ?? 0,
                         snippetCount: snippetCounts[task.id] ?? 0,
                       ),

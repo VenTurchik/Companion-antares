@@ -43,7 +43,7 @@ class TaskService {
       throw TimerNotRunningException();
     }
     task.status = newStatusKey;
-    await _taskRepo.update(task);
+    await _taskRepo.move(task.id, newStatusKey);
   }
 
   /// Удаляет задачу и связанные заметки.

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/database/database_helper.dart';
 import '../../services/settings_service.dart';
+import '../onboarding/onboarding_screen.dart';
 
 /// Экран настроек: тема, имя, язык, IDE, сброс, управление колонками.
 class SettingsScreen extends StatefulWidget {
@@ -141,6 +143,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
               icon: const Icon(Icons.restore),
               label: const Text('Сбросить все настройки'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Сбросить локальную БД?'),
+                    content: const Text('Удалить все локальные данные? Это необратимо.'),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Отмена')),
+                      FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Сбросить')),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await DatabaseHelper().clearAll();
+                  await settings.resetAll();
+                  if (mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                      (_) => false,
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.delete_forever),
+              label: const Text('Сбросить локальную БД'),
             ),
           ),
         ],
