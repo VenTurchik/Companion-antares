@@ -144,25 +144,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
             ),
             const SizedBox(height: 8),
             if (!adapter.isConnected && store.recentServers.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: DropdownButtonFormField<String>(
-                  value: null,
-                  decoration: const InputDecoration(
-                    labelText: 'Последние серверы',
-                    prefixIcon: Icon(Icons.history),
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                  ),
-                  items: store.recentServers.map((s) => DropdownMenuItem(
-                    value: s,
-                    child: Text(s, overflow: TextOverflow.ellipsis),
-                  )).toList(),
-                  onChanged: (v) {
-                    if (v != null) _urlCtrl.text = v;
-                  },
-                ),
-              ),
+              _recentServersSection(theme, store),
             const SizedBox(height: 8),
             if (!adapter.isConnected)
               Padding(
@@ -234,6 +216,60 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _connectToServer(Map<String, String> server) async {
+    final url = server['url'] ?? '';
+    if (url.isEmpty) return;
+    _urlCtrl.text = url;
+    await _connect();
+  }
+
+  Widget _recentServersSection(ThemeData theme, AppStore store) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Недавние серверы',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ...store.recentServers.map((s) => Card(
+                margin: const EdgeInsets.only(bottom: 6),
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.dns, size: 20),
+                  title: Text(s['name'] ?? s['url'] ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w500)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(s['url'] ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall),
+                      if ((s['lastConnected'] ?? '').isNotEmpty)
+                        Text(s['lastConnected']!,
+                            style: theme.textTheme.labelSmall
+                                ?.copyWith(color: Colors.grey)),
+                    ],
+                  ),
+                  trailing: FilledButton.tonal(
+                    onPressed: _connecting ? null : () => _connectToServer(s),
+                    style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        minimumSize: const Size(80, 36)),
+                    child: const Text('Подкл.'),
+                  ),
+                ),
+              )),
+        ],
       ),
     );
   }

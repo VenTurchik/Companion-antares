@@ -179,6 +179,7 @@ class _MembersScreenState extends State<MembersScreen> {
     final role = user['role']?.toString() ?? 'reader';
     final platform = user['platform']?.toString();
     final lastActive = user['last_active']?.toString();
+    final lastIp = isRoot ? user['last_ip']?.toString() : null;
 
     final color = _roleColor(role);
     final canChange = isRoot && _canChangeRole(user);
@@ -228,13 +229,14 @@ class _MembersScreenState extends State<MembersScreen> {
                       style: TextStyle(color: color, fontSize: 12)),
                 ],
               ),
-            if (platform != null || lastActive != null)
+            if (platform != null || lastActive != null || lastIp != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   [
                     _platformLabel(platform),
                     if (lastActive != null) 'активен: $lastActive',
+                    if (lastIp != null) 'IP: $lastIp',
                   ].join(' · '),
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant),

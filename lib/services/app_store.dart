@@ -26,17 +26,39 @@ class AppStore extends ChangeNotifier {
   String? syncServerUrl;
 
   // --- Последние серверы ---
-  List<String> _recentServers = [];
+  List<Map<String, String>> _recentServers = [];
 
-  List<String> get recentServers => List.unmodifiable(_recentServers);
+  List<Map<String, String>> get recentServers =>
+      List.unmodifiable(_recentServers);
 
-  void addRecentServer(String url) {
-    _recentServers.remove(url);
-    _recentServers.insert(0, url);
-    if (_recentServers.length > 10) {
-      _recentServers = _recentServers.sublist(0, 10);
+  void addRecentServer(String url, String name) {
+    _recentServers.removeWhere((s) => s['url'] == url);
+    _recentServers.insert(0, {
+      'url': url,
+      'name': name,
+      'lastConnected': DateTime.now().toIso8601String(),
+    });
+    if (_recentServers.length > 5) {
+      _recentServers = _recentServers.sublist(0, 5);
     }
     notifyListeners();
+  }
+
+  // --- Идентификатор устройства ---
+  String? _deviceId;
+
+  String get deviceId {
+    if (_deviceId == null) {
+      _deviceId = const Uuid().v4();
+      _persist();
+    }
+    return _deviceId!;
+  }
+
+  Future<void> setDeviceId(String id) async {
+    _deviceId = id;
+    notifyListeners();
+    await _persist();
   }
 
   // --- Данные подключения к POLARIS ---
@@ -108,8 +130,12 @@ class AppStore extends ChangeNotifier {
         _serverName = data['serverName'] as String?;
         _userRole = data['userRole'] as String?;
         _sessionToken = data['sessionToken'] as String?;
+        _deviceId = data['deviceId'] as String?;
         if (data['recentServers'] is List) {
-          _recentServers = (data['recentServers'] as List).cast<String>();
+          _recentServers = (data['recentServers'] as List).map((e) {
+            if (e is Map) return Map<String, String>.from(e);
+            return {'url': e.toString(), 'name': e.toString(), 'lastConnected': ''};
+          }).toList();
         }
         _connectionState = data['connectedAt'] != null
             ? ServerConnectionState.connected
@@ -143,6 +169,7 @@ class AppStore extends ChangeNotifier {
       'serverName': _serverName,
       'userRole': _userRole,
       'sessionToken': _sessionToken,
+      'deviceId': _deviceId,
       'connectedAt': _connectedAt?.toIso8601String(),
       'todayWorkSeconds': todayWorkSeconds,
       'weeklyWork': _weeklyWorkCache,
@@ -178,7 +205,7 @@ class AppStore extends ChangeNotifier {
     _connectionState = ServerConnectionState.connected;
     _serverUrl = url;
     _serverName = name;
-    addRecentServer(url);
+    addRecentServer(url, name);
     _userRole = role;
     _connectedAt = DateTime.now();
     notifyListeners();

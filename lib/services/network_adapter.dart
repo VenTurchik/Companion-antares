@@ -81,6 +81,8 @@ class AntaresNetworkAdapter extends ChangeNotifier {
         'client_version': '0.1.0',
         'user_name': username,
         'confirmation_code': authCode,
+        'platform': Platform.operatingSystem,
+        'device_id': _store.deviceId,
       }));
 
       final res = await req.close();
