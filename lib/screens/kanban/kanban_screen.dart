@@ -14,6 +14,7 @@ import 'dialogs/column_dialog.dart';
 import 'widgets/kanban_board.dart';
 import 'widgets/kanban_table_tab.dart';
 import 'widgets/archive_tab.dart';
+import '../../widgets/ping_indicator.dart';
 
 /// Экран канбан-доски с тремя вкладками: Доска, Таблица, Архив.
 class KanbanScreen extends StatefulWidget {
@@ -174,6 +175,7 @@ class _KanbanScreenState extends State<KanbanScreen> {
       appBar: AppBar(
         title: const Text('Канбан'),
         actions: [
+          const PingIndicator(),
           if (_tabIndex == 0)
             IconButton(
               icon: const Icon(Icons.playlist_add),

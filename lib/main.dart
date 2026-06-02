@@ -22,6 +22,7 @@ import 'services/work_timer_service.dart';
 import 'services/app_store.dart';
 import 'services/tray_service.dart';
 import 'services/network_adapter.dart';
+import 'services/ping_service.dart';
 import 'app.dart';
 
 void main() async {
@@ -41,8 +42,9 @@ void main() async {
   final store = AppStore(workRepo, activityRepo);
   await store.init();
 
-  // === Сетевой адаптер ===
-  final networkAdapter = AntaresNetworkAdapter(store);
+  // === Ping-сервис и сетевой адаптер ===
+  final pingService = PingService(store);
+  final networkAdapter = AntaresNetworkAdapter(store, pingService);
 
   // === Репозитории с поддержкой двух режимов ===
   final TaskRepository taskRepo = TaskRepositoryImpl(db, store, networkAdapter);
@@ -67,6 +69,7 @@ void main() async {
         ChangeNotifierProvider.value(value: timer),
         ChangeNotifierProvider.value(value: store),
         ChangeNotifierProvider.value(value: networkAdapter),
+        ChangeNotifierProvider.value(value: pingService),
         Provider<TaskService>.value(value: taskService),
         Provider<MetricsService>.value(value: metricsService),
       ],

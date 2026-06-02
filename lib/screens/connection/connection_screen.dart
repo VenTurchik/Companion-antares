@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../services/app_store.dart';
 import '../../services/network_adapter.dart';
+import '../../services/ping_service.dart';
 
 class ConnectionScreen extends StatefulWidget {
   const ConnectionScreen({super.key});
@@ -219,6 +220,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               if (store.connectedAt != null)
                 _infoRow(theme, 'Подключено',
                     DateFormat('dd.MM.yyyy HH:mm', 'ru').format(store.connectedAt!)),
+              _pingSection(theme),
               const SizedBox(height: 24),
               if (adapter.serverStats != null)
                 _statsSection(theme, adapter),
@@ -283,6 +285,67 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
         ),
       ],
     );
+  }
+
+  Widget _pingSection(ThemeData theme) {
+    final ping = context.watch<PingService>();
+    if (!context.read<AppStore>().isConnected) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Качество сети',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                _pingIcon(ping.currentPing),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (ping.currentPing != null) ...[
+                        Text('Текущий: ${ping.currentPing} мс',
+                            style: theme.textTheme.bodyMedium),
+                        Text('Средний: ${ping.averagePing} мс',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant)),
+                        Text('Качество: ${ping.quality ?? "нет связи"}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant)),
+                      ] else
+                        const Text('Нет связи с сервером'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _pingIcon(int? p) {
+    if (p == null) {
+      return const Icon(Icons.signal_wifi_off, color: Colors.grey, size: 32);
+    }
+    Color color;
+    if (p < 50) {
+      color = Colors.green;
+    } else if (p < 100) {
+      color = Colors.amber;
+    } else if (p < 200) {
+      color = Colors.orange;
+    } else {
+      color = Colors.red;
+    }
+    return Icon(Icons.signal_wifi_4_bar, color: color, size: 32);
   }
 
   Widget _statusCard(ThemeData theme, AppStore store, AntaresNetworkAdapter adapter) {

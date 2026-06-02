@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/database/database_helper.dart';
 import '../../services/settings_service.dart';
+import '../../widgets/ping_indicator.dart';
 import '../onboarding/onboarding_screen.dart';
 
 /// Экран настроек: тема, имя, язык, IDE, сброс, управление колонками.
@@ -29,7 +30,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Настройки')),
+      appBar: AppBar(
+        title: const Text('Настройки'),
+        actions: const [PingIndicator()],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

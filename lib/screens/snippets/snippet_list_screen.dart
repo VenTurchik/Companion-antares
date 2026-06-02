@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/snippet.dart';
 import '../../domain/services/task_service.dart';
+import '../../widgets/ping_indicator.dart';
 import 'snippet_editor_screen.dart';
 
 /// Экран списка сниппетов с поиском и фильтрацией по тегам.
@@ -87,6 +88,7 @@ class _SnippetListScreenState extends State<SnippetListScreen> {
       appBar: AppBar(
         title: const Text('Сниппеты'),
         actions: [
+          const PingIndicator(),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => _open(null),

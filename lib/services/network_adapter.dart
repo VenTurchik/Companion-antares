@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'app_store.dart';
+import 'ping_service.dart';
 
 /// Адаптер для подключения к серверу POLARIS и синхронизации данных.
 class AntaresNetworkAdapter extends ChangeNotifier {
   final AppStore _store;
+  final PingService _pingService;
 
-  AntaresNetworkAdapter(this._store);
+  AntaresNetworkAdapter(this._store, this._pingService);
 
   HttpClient? _client;
   bool _isConnecting = false;
@@ -92,6 +94,7 @@ class AntaresNetworkAdapter extends ChangeNotifier {
         if (token != null) await _store.setSessionToken(token);
         _isConnecting = false;
         notifyListeners();
+        _pingService.start();
         return true;
       }
     } catch (_) {}
@@ -104,6 +107,7 @@ class AntaresNetworkAdapter extends ChangeNotifier {
 
   /// Отключается от сервера.
   Future<void> disconnect() async {
+    _pingService.stop();
     _client?.close();
     _client = null;
     await _store.setDisconnected();

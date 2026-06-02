@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/note.dart';
 import '../../domain/services/task_service.dart';
+import '../../widgets/ping_indicator.dart';
 import 'note_editor_screen.dart';
 
 /// Экран списка заметок.
@@ -50,6 +51,7 @@ class _NoteListScreenState extends State<NoteListScreen> {
       appBar: AppBar(
         title: const Text('Заметки'),
         actions: [
+          const PingIndicator(),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => _open(null),
