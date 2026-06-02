@@ -141,6 +141,34 @@ class AntaresNetworkAdapter extends ChangeNotifier {
     return (await _post('/api/v1/admin/reset-db', {})) != null;
   }
 
+  /// Получает список пользователей.
+  Future<List<Map<String, dynamic>>?> getUsers() async {
+    final list = await _getList('/api/v1/users');
+    return list?.cast<Map<String, dynamic>>();
+  }
+
+  /// Меняет роль пользователя.
+  Future<bool> changeUserRole(String userId, String newRole) =>
+      _put('/api/v1/users/$userId/role', {'role': newRole});
+
+  /// Получает профиль текущего пользователя.
+  Future<Map<String, dynamic>?> getUserProfile() => _get('/api/v1/users/me');
+
+  /// Обновляет имя текущего пользователя.
+  Future<bool> updateUserProfile(String name) =>
+      _put('/api/v1/users/me', {'username': name});
+
+  /// Получает код приглашения.
+  Future<Map<String, dynamic>?> getInviteCode() async {
+    final list = await _getList('/api/v1/invitations');
+    if (list == null || list.isEmpty) return null;
+    return list.first as Map<String, dynamic>?;
+  }
+
+  /// Создаёт новое приглашение.
+  Future<Map<String, dynamic>?> createInviteCode() =>
+      _post('/api/v1/invitations', {});
+
   /// POST запрос (возвращает true при успехе).
   Future<bool> post(String path, Map<String, dynamic> data) async {
     return (await _post(path, data)) != null;

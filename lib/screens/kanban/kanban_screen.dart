@@ -8,6 +8,7 @@ import '../../domain/services/task_service.dart';
 import '../../services/work_timer_service.dart';
 import '../../core/constants.dart';
 import '../../core/errors/app_exception.dart';
+import '../../services/app_store.dart';
 import '../tasks/task_detail_screen.dart';
 import 'dialogs/task_dialog.dart';
 import 'dialogs/column_dialog.dart';
@@ -15,6 +16,7 @@ import 'widgets/kanban_board.dart';
 import 'widgets/kanban_table_tab.dart';
 import 'widgets/archive_tab.dart';
 import '../../widgets/ping_indicator.dart';
+import '../../widgets/role_badge.dart';
 
 /// Экран канбан-доски с тремя вкладками: Доска, Таблица, Архив.
 class KanbanScreen extends StatefulWidget {
@@ -168,25 +170,29 @@ class _KanbanScreenState extends State<KanbanScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final store = context.watch<AppStore>();
     final noteCounts = _noteCounts();
     final snippetCounts = _snippetCounts();
+    final canCreate = store.userRole != 'reader';
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Канбан'),
         actions: [
+          const RoleBadge(),
           const PingIndicator(),
-          if (_tabIndex == 0)
+          if (_tabIndex == 0 && canCreate)
             IconButton(
               icon: const Icon(Icons.playlist_add),
               tooltip: 'Добавить колонку',
               onPressed: _addColumn,
             ),
-          IconButton(
-            icon: const Icon(Icons.add_task),
-            tooltip: 'Новая задача',
-            onPressed: _create,
-          ),
+          if (canCreate)
+            IconButton(
+              icon: const Icon(Icons.add_task),
+              tooltip: 'Новая задача',
+              onPressed: _create,
+            ),
         ],
       ),
       body: Column(
@@ -204,7 +210,7 @@ class _KanbanScreenState extends State<KanbanScreen> {
             ),
           ),
           const Divider(height: 1),
-          Expanded(child: _buildTabContent(noteCounts, snippetCounts)),
+          Expanded(child: _buildTabContent(noteCounts, snippetCounts, canDelete: store.userRole == 'admin' || store.userRole == 'root')),
         ],
       ),
     );
@@ -222,7 +228,7 @@ class _KanbanScreenState extends State<KanbanScreen> {
     );
   }
 
-  Widget _buildTabContent(Map<String, int> noteCounts, Map<String, int> snippetCounts) {
+  Widget _buildTabContent(Map<String, int> noteCounts, Map<String, int> snippetCounts, {bool canDelete = true}) {
     switch (_tabIndex) {
       case 0: return KanbanBoard(
         columns: _columns,
@@ -230,10 +236,10 @@ class _KanbanScreenState extends State<KanbanScreen> {
         noteCounts: noteCounts,
         snippetCounts: snippetCounts,
         onTap: _showDetail,
-        onDelete: _delete,
+        onDelete: canDelete ? _delete : (_) {},
         onArchive: (t) => _moveTask(t, 'done'),
         onMoveTask: _moveTask,
-        onDeleteColumn: _deleteColumn,
+        onDeleteColumn: canDelete ? _deleteColumn : (_) async {},
         onEditColumn: _editColumn,
       );
       case 1: return KanbanTableTab(
@@ -245,7 +251,7 @@ class _KanbanScreenState extends State<KanbanScreen> {
         tasks: _archiveTasks(),
         onTap: _showDetail,
         onUnarchive: (t) => _moveTask(t, TaskStatusKeys.todo),
-        onDelete: _delete,
+        onDelete: canDelete ? _delete : (_) {},
       );
       default: return const SizedBox();
     }

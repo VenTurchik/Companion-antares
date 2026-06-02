@@ -6,6 +6,7 @@ import '../../services/work_timer_service.dart';
 import '../../services/app_store.dart';
 import '../../widgets/metric_chart.dart';
 import '../../widgets/ping_indicator.dart';
+import '../../widgets/role_badge.dart';
 
 /// Экран метрик: статистика активностей, время работы, графики.
 class MetricsScreen extends StatefulWidget {
@@ -53,7 +54,7 @@ class _MetricsScreenState extends State<MetricsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Метрики'),
-        actions: const [PingIndicator()],
+        actions: const [PingIndicator(), RoleBadge()],
       ),
       body: RefreshIndicator(
         onRefresh: _load,

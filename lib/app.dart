@@ -11,8 +11,10 @@ import 'screens/notes/note_list_screen.dart';
 import 'screens/snippets/snippet_list_screen.dart';
 import 'screens/metrics/metrics_screen.dart';
 import 'screens/settings/settings_screen.dart';
+import 'screens/members/members_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/connection/connection_screen.dart';
+import 'screens/profile/profile_screen.dart';
 import 'services/app_store.dart';
 import 'services/network_adapter.dart';
 
@@ -83,6 +85,47 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final timer = context.watch<WorkTimerService>();
+    final store = context.watch<AppStore>();
+    final isAdmin = store.userRole == 'admin' || store.userRole == 'root';
+    final destinations = [
+      const NavigationRailDestination(
+        icon: Icon(Icons.dashboard_outlined),
+        selectedIcon: Icon(Icons.dashboard),
+        label: Text('Дашборд'),
+      ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.view_kanban_outlined),
+        selectedIcon: Icon(Icons.view_kanban),
+        label: Text('Канбан'),
+      ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.description_outlined),
+        selectedIcon: Icon(Icons.description),
+        label: Text('Заметки'),
+      ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.code_outlined),
+        selectedIcon: Icon(Icons.code),
+        label: Text('Сниппеты'),
+      ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.bar_chart_outlined),
+        selectedIcon: Icon(Icons.bar_chart),
+        label: Text('Метрики'),
+      ),
+      if (isAdmin)
+        const NavigationRailDestination(
+          icon: Icon(Icons.people_outlined),
+          selectedIcon: Icon(Icons.people),
+          label: Text('Участники'),
+        ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.settings_outlined),
+        selectedIcon: Icon(Icons.settings),
+        label: Text('Настройки'),
+      ),
+    ];
+    if (_index >= destinations.length) _index = destinations.length - 1;
     return Scaffold(
       body: Row(
         children: [
@@ -90,6 +133,15 @@ class _MainShellState extends State<MainShell> {
             children: [
               _buildTimerPanel(timer, theme),
               _buildConnectionIndicator(context, theme),
+              SizedBox(
+                width: 80,
+                child: IconButton(
+                  icon: const Icon(Icons.person_outline, size: 18),
+                  onPressed: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const ProfileScreen())),
+                  tooltip: 'Мой профиль',
+                ),
+              ),
               Expanded(
                 child: NavigationRail(
                   selectedIndex: _index,
@@ -104,38 +156,7 @@ class _MainShellState extends State<MainShell> {
                     child: Icon(Icons.auto_awesome,
                         color: Colors.indigo.shade400, size: 28),
                   ),
-                  destinations: const [
-                    NavigationRailDestination(
-                      icon: Icon(Icons.dashboard_outlined),
-                      selectedIcon: Icon(Icons.dashboard),
-                      label: Text('Дашборд'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.view_kanban_outlined),
-                      selectedIcon: Icon(Icons.view_kanban),
-                      label: Text('Канбан'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.description_outlined),
-                      selectedIcon: Icon(Icons.description),
-                      label: Text('Заметки'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.code_outlined),
-                      selectedIcon: Icon(Icons.code),
-                      label: Text('Сниппеты'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.bar_chart_outlined),
-                      selectedIcon: Icon(Icons.bar_chart),
-                      label: Text('Метрики'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.settings_outlined),
-                      selectedIcon: Icon(Icons.settings),
-                      label: Text('Настройки'),
-                    ),
-                  ],
+                  destinations: destinations,
                 ),
               ),
             ],
@@ -148,13 +169,16 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _screen() {
+    final isAdmin = context.read<AppStore>().userRole == 'admin' ||
+        context.read<AppStore>().userRole == 'root';
     switch (_index) {
       case 0: return DashboardScreen(onGoToTab: (i) => setState(() => _index = i));
       case 1: return const KanbanScreen();
       case 2: return const NoteListScreen();
       case 3: return const SnippetListScreen();
       case 4: return const MetricsScreen();
-      case 5: return const SettingsScreen();
+      case 5: return isAdmin ? const MembersScreen() : const SettingsScreen();
+      case 6: return const SettingsScreen();
       default: return const SizedBox();
     }
   }

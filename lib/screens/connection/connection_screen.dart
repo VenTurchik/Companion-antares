@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../../services/app_store.dart';
 import '../../services/network_adapter.dart';
 import '../../services/ping_service.dart';
+import '../profile/profile_screen.dart';
+import '../members/members_screen.dart';
 
 class ConnectionScreen extends StatefulWidget {
   const ConnectionScreen({super.key});
@@ -227,6 +229,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               const SizedBox(height: 24),
               if (store.userRole == 'root')
                 _resetServerSection(theme, context),
+              const SizedBox(height: 24),
+              _navigationSection(theme, store),
             ],
           ],
         ),
@@ -266,6 +270,46 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
         ),
       );
     }
+  }
+
+  Widget _navigationSection(ThemeData theme, AppStore store) {
+    final isAdmin =
+        store.userRole == 'admin' || store.userRole == 'root';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Навигация',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.person),
+                  title: const Text('Мой профиль'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const ProfileScreen())),
+                ),
+                if (isAdmin) ...[
+                  const Divider(height: 1, indent: 16, endIndent: 16),
+                  ListTile(
+                    leading: const Icon(Icons.people),
+                    title: const Text('Участники'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const MembersScreen())),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _resetServerSection(ThemeData theme, BuildContext context) {

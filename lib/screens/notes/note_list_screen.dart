@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../models/note.dart';
 import '../../domain/services/task_service.dart';
 import '../../widgets/ping_indicator.dart';
+import '../../widgets/role_badge.dart';
+import '../../services/app_store.dart';
 import 'note_editor_screen.dart';
 
 /// Экран списка заметок.
@@ -47,15 +49,21 @@ class _NoteListScreenState extends State<NoteListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final store = context.watch<AppStore>();
+    final canCreate = store.userRole != 'reader';
+    final canDelete = store.userRole == 'admin' || store.userRole == 'root';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Заметки'),
         actions: [
+          const RoleBadge(),
           const PingIndicator(),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _open(null),
-          ),
+          if (canCreate)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _open(null),
+            ),
         ],
       ),
       body: RefreshIndicator(
@@ -74,10 +82,12 @@ class _NoteListScreenState extends State<NoteListScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () => _delete(note),
-                    ),
+                    trailing: canDelete
+                        ? IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _delete(note),
+                          )
+                        : null,
                     onTap: () => _open(note),
                   );
                 },

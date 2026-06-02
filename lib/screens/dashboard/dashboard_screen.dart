@@ -9,6 +9,7 @@ import '../../domain/services/metrics_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/work_timer_service.dart';
 import '../../widgets/ping_indicator.dart';
+import '../../widgets/role_badge.dart';
 import '../../services/app_store.dart';
 import '../../widgets/metric_chart.dart';
 import '../notes/note_editor_screen.dart';
@@ -255,7 +256,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Дашборд'),
-        actions: const [PingIndicator()],
+        actions: const [PingIndicator(), RoleBadge()],
       ),
       body: RefreshIndicator(
         onRefresh: _load,
@@ -307,45 +308,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     label: const Text('Открыть IDE'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _addManualTime,
-                    icon: const Icon(Icons.schedule),
-                    label: const Text('Время вручную'),
+                if (store.userRole != 'reader') ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _addManualTime,
+                      icon: const Icon(Icons.schedule),
+                      label: const Text('Время вручную'),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _createTask,
-                    icon: const Icon(Icons.add_task),
-                    label: const Text('Создать задачу'),
+            if (store.userRole != 'reader') ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _createTask,
+                      icon: const Icon(Icons.add_task),
+                      label: const Text('Создать задачу'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _createNote,
-                    icon: const Icon(Icons.note_add),
-                    label: const Text('Новая заметка'),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _createNote,
+                      icon: const Icon(Icons.note_add),
+                      label: const Text('Новая заметка'),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _createSnippet,
-                icon: const Icon(Icons.code),
-                label: const Text('Добавить сниппет'),
+                ],
               ),
-            ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _createSnippet,
+                  icon: const Icon(Icons.code),
+                  label: const Text('Добавить сниппет'),
+                ),
+              ),
+            ],
           ],
         ),
       ),

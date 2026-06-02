@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../models/snippet.dart';
 import '../../domain/services/task_service.dart';
 import '../../widgets/ping_indicator.dart';
+import '../../widgets/role_badge.dart';
+import '../../services/app_store.dart';
 import 'snippet_editor_screen.dart';
 
 /// Экран списка сниппетов с поиском и фильтрацией по тегам.
@@ -84,15 +86,21 @@ class _SnippetListScreenState extends State<SnippetListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final store = context.watch<AppStore>();
+    final canCreate = store.userRole != 'reader';
+    final canDelete = store.userRole == 'admin' || store.userRole == 'root';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Сниппеты'),
         actions: [
+          const RoleBadge(),
           const PingIndicator(),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _open(null),
-          ),
+          if (canCreate)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _open(null),
+            ),
         ],
       ),
       body: RefreshIndicator(
@@ -146,10 +154,12 @@ class _SnippetListScreenState extends State<SnippetListScreen> {
                               overflow: TextOverflow.ellipsis),
                           subtitle: Text('${snippet.language} · ${snippet.tags.join(', ')}',
                               maxLines: 1, overflow: TextOverflow.ellipsis),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => _delete(snippet),
-                          ),
+                          trailing: canDelete
+                              ? IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  onPressed: () => _delete(snippet),
+                                )
+                              : null,
                           onTap: () => _open(snippet),
                         );
                       },

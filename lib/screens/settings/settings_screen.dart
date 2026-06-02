@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../core/database/database_helper.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/ping_indicator.dart';
+import '../../widgets/role_badge.dart';
+import '../../services/app_store.dart';
 import '../onboarding/onboarding_screen.dart';
 
 /// Экран настроек: тема, имя, язык, IDE, сброс, управление колонками.
@@ -28,11 +30,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
     final theme = Theme.of(context);
+    final canManage = context.watch<AppStore>().userRole != 'reader';
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Настройки'),
-        actions: const [PingIndicator()],
+        actions: const [PingIndicator(), RoleBadge()],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -120,71 +123,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // ---- Сброс ----
-          _section(theme, 'Сброс'),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Сбросить настройки?'),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Отмена')),
-                      FilledButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text('Сбросить')),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await settings.resetAll();
-                }
-              },
-              icon: const Icon(Icons.restore),
-              label: const Text('Сбросить все настройки'),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Сбросить локальную БД?'),
-                    content: const Text('Удалить все локальные данные? Это необратимо.'),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Отмена')),
-                      FilledButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text('Сбросить')),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await DatabaseHelper().clearAll();
-                  await settings.resetAll();
-                  if (mounted) {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-                      (_) => false,
-                    );
+          if (canManage) ...[
+            // ---- Сброс ----
+            _section(theme, 'Сброс'),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Сбросить настройки?'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Отмена')),
+                        FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Сбросить')),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await settings.resetAll();
                   }
-                }
-              },
-              icon: const Icon(Icons.delete_forever),
-              label: const Text('Сбросить локальную БД'),
+                },
+                icon: const Icon(Icons.restore),
+                label: const Text('Сбросить все настройки'),
+              ),
             ),
-          ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Сбросить локальную БД?'),
+                      content: const Text('Удалить все локальные данные? Это необратимо.'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Отмена')),
+                        FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Сбросить')),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await DatabaseHelper().clearAll();
+                    await settings.resetAll();
+                    if (mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                        (_) => false,
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.delete_forever),
+                label: const Text('Сбросить локальную БД'),
+              ),
+            ),
+          ],
         ],
       ),
     );
