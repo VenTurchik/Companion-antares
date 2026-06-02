@@ -49,3 +49,5 @@ app.*.map.json
 **/linux/flutter/ephemeral/
 **/macos/Runner/Flutter/ephemeral/
 **/macos/Pods/
+
+AGENTS.md
