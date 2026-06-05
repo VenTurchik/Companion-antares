@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../services/app_store.dart';
 import '../../services/network_adapter.dart';
+import '../../services/loading_service.dart';
 import '../../widgets/ping_indicator.dart';
 import '../../widgets/role_badge.dart';
 
@@ -23,23 +24,29 @@ class _MembersScreenState extends State<MembersScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   Future<void> _load() async {
+    final loader = context.read<LoadingService>();
+    loader.startLoading('Загрузка списка участников...');
     setState(() => _loading = true);
-    final adapter = context.read<AntaresNetworkAdapter>();
-    final users = await adapter.getUsers();
-    final invite = await adapter.getInviteCode();
-    final profile = await adapter.getUserProfile();
-    if (!mounted) return;
-    setState(() {
-      final raw = users ?? [];
-      _users = raw.where((u) => u['platform'] != 'CLI').toList();
-      _inviteCode = invite?['code']?.toString();
-      _currentUserId = profile?['id']?.toString();
-      _loading = false;
-    });
+    try {
+      final adapter = context.read<AntaresNetworkAdapter>();
+      final users = await adapter.getUsers();
+      final invite = await adapter.getInviteCode();
+      final profile = await adapter.getUserProfile();
+      if (!mounted) return;
+      setState(() {
+        final raw = users ?? [];
+        _users = raw.where((u) => u['platform'] != 'CLI').toList();
+        _inviteCode = invite?['code']?.toString();
+        _currentUserId = profile?['id']?.toString();
+        _loading = false;
+      });
+    } finally {
+      loader.stopLoading();
+    }
   }
 
   Future<void> _changeRole(String userId, String newRole) async {
@@ -58,35 +65,41 @@ class _MembersScreenState extends State<MembersScreen> {
   }
 
   Future<void> _createInvite() async {
+    final loader = context.read<LoadingService>();
+    loader.startLoading('Загрузка приглашений...');
     setState(() => _inviting = true);
-    final adapter = context.read<AntaresNetworkAdapter>();
-    final result = await adapter.createInviteCode();
-    if (!mounted) return;
-    setState(() => _inviting = false);
-    if (result != null) {
-      final code = result['code']?.toString() ?? 'Ошибка';
-      setState(() => _inviteCode = code);
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Код приглашения'),
-            content: SelectableText(code,
-                style: const TextStyle(fontSize: 24, letterSpacing: 3)),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Закрыть')),
-            ],
-          ),
+    try {
+      final adapter = context.read<AntaresNetworkAdapter>();
+      final result = await adapter.createInviteCode();
+      if (!mounted) return;
+      setState(() => _inviting = false);
+      if (result != null) {
+        final code = result['code']?.toString() ?? 'Ошибка';
+        setState(() => _inviteCode = code);
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Код приглашения'),
+              content: SelectableText(code,
+                  style: const TextStyle(fontSize: 24, letterSpacing: 3)),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Закрыть')),
+              ],
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Ошибка создания приглашения'),
+              backgroundColor: Colors.red),
         );
       }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Ошибка создания приглашения'),
-            backgroundColor: Colors.red),
-      );
+    } finally {
+      loader.stopLoading();
     }
   }
 
@@ -106,9 +119,9 @@ class _MembersScreenState extends State<MembersScreen> {
   String _roleLabel(String role) {
     switch (role) {
       case 'root':
-        return 'Администратор';
+        return 'Владелец';
       case 'admin':
-        return 'Модератор';
+        return 'Администратор';
       case 'participant':
         return 'Участник';
       default:

@@ -39,8 +39,8 @@ class KanbanColumn extends StatelessWidget {
           margin: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: isHovering
-                ? color.withValues(alpha: 0.2)
-                : color.withValues(alpha: 0.05),
+                ? _bgColor(context, color, hover: true)
+                : _bgColor(context, color),
             borderRadius: BorderRadius.circular(12),
             border: isHovering ? Border.all(color: color, width: 2) : null,
           ),
@@ -50,7 +50,7 @@ class KanbanColumn extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.2),
+                  color: _bgColor(context, color),
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(12)),
                 ),
@@ -119,5 +119,13 @@ class KanbanColumn extends StatelessWidget {
         );
       },
     );
+  }
+
+  Color _bgColor(BuildContext context, Color color, {bool hover = false}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (isDark) {
+      return hover ? color.withValues(alpha: 0.35) : color.withValues(alpha: 0.18);
+    }
+    return hover ? color.withValues(alpha: 0.2) : color.withValues(alpha: 0.07);
   }
 }

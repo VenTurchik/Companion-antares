@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../services/app_store.dart';
 import '../../services/network_adapter.dart';
 import '../../services/ping_service.dart';
+import '../../services/local_network_discovery.dart';
 import '../profile/profile_screen.dart';
 import '../members/members_screen.dart';
 
@@ -16,6 +17,7 @@ class ConnectionScreen extends StatefulWidget {
 
 class _ConnectionScreenState extends State<ConnectionScreen> {
   final _urlCtrl = TextEditingController();
+  final _codeCtrl = TextEditingController();
   bool _connecting = false;
   bool _scanning = false;
 
@@ -31,7 +33,17 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
   @override
   void dispose() {
     _urlCtrl.dispose();
+    _codeCtrl.dispose();
     super.dispose();
+  }
+
+  void _selectServer(String url) {
+    _urlCtrl.text = url;
+    final store = context.read<AppStore>();
+    final savedCode = store.getServerToken(url);
+    if (savedCode != null) {
+      _codeCtrl.text = savedCode;
+    }
   }
 
   Future<void> _connect() async {
@@ -43,12 +55,22 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       return;
     }
 
+    final code = _codeCtrl.text.trim();
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Введите код доступа к серверу')),
+      );
+      return;
+    }
+
     setState(() => _connecting = true);
     final adapter = context.read<AntaresNetworkAdapter>();
-    final success = await adapter.connect(url);
+    final store = context.read<AppStore>();
+    final success = await adapter.connect(url, code);
     if (mounted) {
       setState(() => _connecting = false);
       if (success) {
+        await store.setServerToken(url, code);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Подключено к POLARIS'), backgroundColor: Colors.green),
         );
@@ -72,8 +94,12 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
   }
 
   Future<void> _scanNetwork() async {
+    print('[LAN] Сканирование локальной сети...');
     setState(() => _scanning = true);
     final servers = await AntaresNetworkAdapter.discover();
+    if (servers.isNotEmpty) {
+      print('[LAN] Найдено устройств: ${servers.length}');
+    }
     if (mounted) {
       setState(() => _scanning = false);
       if (servers.isEmpty) {
@@ -81,7 +107,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           const SnackBar(content: Text('Серверы не найдены')),
         );
       } else if (servers.length == 1) {
-        _urlCtrl.text = servers.first['url'] ?? '';
+        _selectServer(servers.first['url'] ?? '');
       } else {
         _showServerPicker(servers);
       }
@@ -100,7 +126,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
             title: Text(s['name'] ?? 'POLARIS'),
             subtitle: Text(s['url'] ?? ''),
             onTap: () {
-              _urlCtrl.text = s['url'] ?? '';
+              _selectServer(s['url'] ?? '');
               Navigator.of(ctx).pop();
             },
           )).toList(),
@@ -143,8 +169,26 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               enabled: !_connecting && !adapter.isConnected,
             ),
             const SizedBox(height: 8),
+            if (!adapter.isConnected)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: TextField(
+                  controller: _codeCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Код доступа к серверу',
+                    hintText: 'Введите код',
+                    prefixIcon: Icon(Icons.lock),
+                    border: OutlineInputBorder(),
+                  ),
+                  enabled: !_connecting,
+                ),
+              ),
+            const SizedBox(height: 8),
             if (!adapter.isConnected && store.recentServers.isNotEmpty)
               _recentServersSection(theme, store),
+            const SizedBox(height: 8),
+            if (!adapter.isConnected)
+              _discoveredDevicesSection(theme),
             const SizedBox(height: 8),
             if (!adapter.isConnected)
               Padding(
@@ -223,8 +267,110 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
   Future<void> _connectToServer(Map<String, String> server) async {
     final url = server['url'] ?? '';
     if (url.isEmpty) return;
-    _urlCtrl.text = url;
+    _selectServer(url);
     await _connect();
+  }
+
+  Widget _discoveredDevicesSection(ThemeData theme) {
+    final discovery = context.watch<LocalNetworkDiscovery>();
+    final devices = discovery.devices;
+    final servers = discovery.servers;
+    final isSearching = discovery.isSearching;
+
+    if (isSearching) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 12),
+              Text('Поиск серверов в локальной сети...',
+                  style: theme.textTheme.bodyMedium),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (servers.isEmpty && devices.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (servers.isNotEmpty) ...[
+          Text('Доступные серверы в локальной сети',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ...servers.map((s) => Card(
+                margin: const EdgeInsets.only(bottom: 6),
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.dns, size: 20, color: Colors.indigo),
+                  title: Text(s['name']?.toString() ?? 'POLARIS',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w500)),
+                  subtitle: Text(
+                    '${s['version'] ?? ''} · ${s['url'] ?? ''}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  trailing: FilledButton.tonal(
+                    onPressed: () {
+                      _selectServer(s['url']?.toString() ?? '');
+                      _connect();
+                    },
+                    style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        minimumSize: const Size(80, 36)),
+                    child: const Text('Подкл.'),
+                  ),
+                ),
+              )),
+          const SizedBox(height: 12),
+        ],
+        if (devices.isNotEmpty) ...[
+          Text('Клиенты Antares',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ...devices.map((d) => Card(
+                margin: const EdgeInsets.only(bottom: 6),
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.devices, size: 20),
+                  title: Text(d.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w500)),
+                  subtitle: Text(
+                    '${d.platform} · ${d.ip}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  trailing: FilledButton.tonal(
+                    onPressed: () {
+                      _selectServer('http://${d.ip}:8000');
+                      _connect();
+                    },
+                    style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        minimumSize: const Size(80, 36)),
+                    child: const Text('Подкл.'),
+                  ),
+                ),
+              )),
+        ],
+      ],
+    );
   }
 
   Widget _recentServersSection(ThemeData theme, AppStore store) {
@@ -255,7 +401,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall),
                       if ((s['lastConnected'] ?? '').isNotEmpty)
-                        Text(s['lastConnected']!,
+                        Text(_formatLastSeen(s['lastConnected']!),
                             style: theme.textTheme.labelSmall
                                 ?.copyWith(color: Colors.grey)),
                     ],
@@ -537,5 +683,21 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
         Expanded(child: Text(value)),
       ],
     );
+  }
+
+  String _formatLastSeen(String isoDate) {
+    final dt = DateTime.tryParse(isoDate);
+    if (dt == null) return isoDate;
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'только что';
+    if (diff.inHours < 1) return '${diff.inMinutes} мин назад';
+    if (diff.inDays < 1) {
+      return 'сегодня в ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+    if (diff.inDays == 1) {
+      return 'вчера в ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+    return '${dt.day}.${dt.month}.${dt.year}';
   }
 }

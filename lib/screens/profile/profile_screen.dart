@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/app_store.dart';
 import '../../services/network_adapter.dart';
+import '../../services/loading_service.dart';
 import '../../widgets/role_badge.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -21,7 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   @override
@@ -31,33 +32,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _load() async {
+    final loader = context.read<LoadingService>();
+    loader.startLoading('Загрузка профиля...');
     setState(() => _loading = true);
-    final adapter = context.read<AntaresNetworkAdapter>();
-    final profile = await adapter.getUserProfile();
-    if (!mounted) return;
-    setState(() {
-      _loading = false;
-      final userName = profile?['name']?.toString() ??
-          profile?['username']?.toString() ??
-          context.read<AppStore>().userId;
-      _nameCtrl.text = userName;
-    });
+    try {
+      final adapter = context.read<AntaresNetworkAdapter>();
+      final profile = await adapter.getUserProfile();
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        final userName = profile?['name']?.toString() ??
+            profile?['username']?.toString() ??
+            context.read<AppStore>().userName ?? '';
+        _nameCtrl.text = userName;
+      });
+    } finally {
+      loader.stopLoading();
+    }
   }
 
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
+    final loader = context.read<LoadingService>();
+    loader.startLoading('Сохранение...');
     setState(() => _saving = true);
-    final ok = await context.read<AntaresNetworkAdapter>().updateUserProfile(name);
-    if (!mounted) return;
-    setState(() => _saving = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok ? 'Имя сохранено' : 'Ошибка сохранения'),
-        backgroundColor: ok ? Colors.green : Colors.red,
-      ),
-    );
-    if (ok) _load();
+    try {
+      final ok =
+          await context.read<AntaresNetworkAdapter>().updateUserProfile(name);
+      if (!mounted) return;
+      if (ok) {
+        try {
+          await context.read<AppStore>().setUserName(name);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Ошибка сохранения имени локально: $e'),
+                  backgroundColor: Colors.red),
+            );
+          }
+        }
+      }
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok ? 'Имя сохранено' : 'Ошибка сохранения'),
+          backgroundColor: ok ? Colors.green : Colors.red,
+        ),
+      );
+      if (ok) _load();
+    } finally {
+      loader.stopLoading();
+    }
   }
 
   Color _roleColor(String role) {
@@ -76,9 +102,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _roleLabel(String role) {
     switch (role) {
       case 'root':
-        return 'Администратор';
+        return 'Владелец';
       case 'admin':
-        return 'Модератор';
+        return 'Администратор';
       case 'participant':
         return 'Участник';
       default:
@@ -129,19 +155,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               fontWeight: FontWeight.bold),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(16),
+                      if (connected) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(_roleLabel(role),
+                              style: TextStyle(
+                                  color: color,
+                                  fontWeight: FontWeight.w500)),
                         ),
-                        child: Text(_roleLabel(role),
-                            style: TextStyle(
-                                color: color,
-                                fontWeight: FontWeight.w500)),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -192,9 +220,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        _infoRow(theme, Icons.badge, 'Роль',
-                            _roleLabel(role)),
                         if (connected) ...[
+                          _infoRow(theme, Icons.badge, 'Роль',
+                              _roleLabel(role)),
                           const Divider(),
                           _infoRow(theme, Icons.desktop_mac, 'Платформа',
                               'Antares · ${_platformName()}'),

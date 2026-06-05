@@ -80,7 +80,7 @@ class TaskCard extends StatelessWidget {
                     if (task.status == 'done' && task.completedAt != null)
                       Text('Завершено: ${dateFormat.format(task.completedAt!)}',
                           style: theme.textTheme.bodySmall
-                              ?.copyWith(color: Colors.green)),
+                              ?.copyWith(color: Colors.green.shade600)),
                     if (noteCount > 0 || snippetCount > 0)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),

@@ -51,7 +51,7 @@ class _NoteListScreenState extends State<NoteListScreen> {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final canCreate = store.userRole != 'reader';
-    final canDelete = store.userRole == 'admin' || store.userRole == 'root';
+    final canDelete = store.userRole == 'root';
 
     return Scaffold(
       appBar: AppBar(

@@ -67,8 +67,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  String _username() => context.read<SettingsService>().username;
-
   Future<void> _createTask() async {
     final result = await _showTaskDialog(context);
     if (result != null && context.mounted) {
@@ -263,7 +261,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text('Добро пожаловать, ${_username()}!',
+            Text('Привет, ${store.userName ?? ""}!',
                 style: theme.textTheme.headlineSmall),
             const SizedBox(height: 4),
             Text(dateStr,
@@ -374,12 +372,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: total != null ? ratio : null,
-                      backgroundColor: color.withValues(alpha: 0.15),
-                      color: color,
-                      minHeight: 12,
-                    ),
+                      child: LinearProgressIndicator(
+                        value: total != null ? ratio : null,
+                        backgroundColor: _progressBg(theme, color),
+                        color: color,
+                        minHeight: 12,
+                      ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -458,6 +456,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final m = ((seconds % 3600) ~/ 60).toString().padLeft(2, '0');
     final s = (seconds % 60).toString().padLeft(2, '0');
     return '$h:$m:$s';
+  }
+
+  Color _progressBg(ThemeData theme, Color color) {
+    if (theme.brightness == Brightness.dark) {
+      return color.withValues(alpha: 0.3);
+    }
+    return color.withValues(alpha: 0.15);
   }
 }
 

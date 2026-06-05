@@ -9,14 +9,12 @@ import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/kanban/kanban_screen.dart';
 import 'screens/notes/note_list_screen.dart';
 import 'screens/snippets/snippet_list_screen.dart';
-import 'screens/metrics/metrics_screen.dart';
 import 'screens/settings/settings_screen.dart';
-import 'screens/members/members_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
-import 'screens/connection/connection_screen.dart';
-import 'screens/profile/profile_screen.dart';
+import 'screens/network/network_screen.dart';
 import 'services/app_store.dart';
 import 'services/network_adapter.dart';
+import 'services/loading_service.dart';
 
 /// Корневой виджет приложения.
 class CompanionApp extends StatelessWidget {
@@ -38,16 +36,6 @@ class CompanionApp extends StatelessWidget {
         textTheme: GoogleFonts.interTextTheme(
           ThemeData.light().textTheme,
         ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black87,
-          elevation: 1,
-        ),
-        cardTheme: const CardThemeData(
-          color: Colors.white,
-          surfaceTintColor: Colors.white,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -57,10 +45,6 @@ class CompanionApp extends StatelessWidget {
         useMaterial3: true,
         textTheme: GoogleFonts.interTextTheme(
           ThemeData.dark().textTheme,
-        ),
-        cardTheme: const CardThemeData(
-          color: Color(0xFF1E1E1E),
-          surfaceTintColor: Color(0xFF1E1E1E),
         ),
       ),
       home: settings.isOnboardingDone
@@ -85,8 +69,6 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final timer = context.watch<WorkTimerService>();
-    final store = context.watch<AppStore>();
-    final isAdmin = store.userRole == 'admin' || store.userRole == 'root';
     final destinations = [
       const NavigationRailDestination(
         icon: Icon(Icons.dashboard_outlined),
@@ -109,16 +91,10 @@ class _MainShellState extends State<MainShell> {
         label: Text('Сниппеты'),
       ),
       const NavigationRailDestination(
-        icon: Icon(Icons.bar_chart_outlined),
-        selectedIcon: Icon(Icons.bar_chart),
-        label: Text('Метрики'),
+        icon: Icon(Icons.cloud_outlined),
+        selectedIcon: Icon(Icons.cloud),
+        label: Text('Подключение'),
       ),
-      if (isAdmin)
-        const NavigationRailDestination(
-          icon: Icon(Icons.people_outlined),
-          selectedIcon: Icon(Icons.people),
-          label: Text('Участники'),
-        ),
       const NavigationRailDestination(
         icon: Icon(Icons.settings_outlined),
         selectedIcon: Icon(Icons.settings),
@@ -127,30 +103,21 @@ class _MainShellState extends State<MainShell> {
     ];
     if (_index >= destinations.length) _index = destinations.length - 1;
     return Scaffold(
-      body: Row(
+      body: Stack(
+        children: [
+          Row(
         children: [
           Column(
             children: [
               _buildTimerPanel(timer, theme),
               _buildConnectionIndicator(context, theme),
-              SizedBox(
-                width: 80,
-                child: IconButton(
-                  icon: const Icon(Icons.person_outline, size: 18),
-                  onPressed: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const ProfileScreen())),
-                  tooltip: 'Мой профиль',
-                ),
-              ),
               Expanded(
                 child: NavigationRail(
                   selectedIndex: _index,
                   onDestinationSelected: (i) => setState(() => _index = i),
                   labelType: NavigationRailLabelType.all,
-                  backgroundColor: theme.brightness == Brightness.dark
-                      ? const Color(0xFF1E1E1E)
-                      : Colors.white,
-                  indicatorColor: Colors.indigo.shade100,
+                  backgroundColor: theme.colorScheme.surface,
+                  indicatorColor: theme.colorScheme.primaryContainer,
                   leading: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Icon(Icons.auto_awesome,
@@ -165,20 +132,64 @@ class _MainShellState extends State<MainShell> {
           Expanded(child: _screen()),
         ],
       ),
+          Consumer<LoadingService>(
+            builder: (_, loader, __) {
+              if (!loader.isLoading) return const SizedBox.shrink();
+              return Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Material(
+                  elevation: 4,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const LinearProgressIndicator(),
+                      Container(
+                        width: double.infinity,
+                        color: theme.brightness == Brightness.dark
+                            ? Colors.grey.shade900
+                            : Colors.black87,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: Row(
+                          children: [
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(loader.message,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
   Widget _screen() {
-    final isAdmin = context.read<AppStore>().userRole == 'admin' ||
-        context.read<AppStore>().userRole == 'root';
     switch (_index) {
       case 0: return DashboardScreen(onGoToTab: (i) => setState(() => _index = i));
       case 1: return const KanbanScreen();
       case 2: return const NoteListScreen();
       case 3: return const SnippetListScreen();
-      case 4: return const MetricsScreen();
-      case 5: return isAdmin ? const MembersScreen() : const SettingsScreen();
-      case 6: return const SettingsScreen();
+      case 4: return const NetworkScreen();
+      case 5: return const SettingsScreen();
       default: return const SizedBox();
     }
   }
@@ -189,8 +200,8 @@ class _MainShellState extends State<MainShell> {
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       decoration: BoxDecoration(
         color: timer.isRunning
-            ? Colors.green.withValues(alpha: 0.1)
-            : Colors.grey.withValues(alpha: 0.05),
+            ? Colors.green.withValues(alpha: 0.15)
+            : theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
         border: Border(
           bottom: BorderSide(color: theme.dividerColor),
         ),
@@ -245,17 +256,14 @@ class _MainShellState extends State<MainShell> {
     final adapter = context.watch<AntaresNetworkAdapter>();
     final connected = adapter.isConnected;
     return InkWell(
-      onTap: () {
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const ConnectionScreen()));
-      },
+      onTap: () => setState(() => _index = 4),
       child: Container(
         width: 80,
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         decoration: BoxDecoration(
           color: connected
-              ? Colors.green.withValues(alpha: 0.08)
-              : Colors.grey.withValues(alpha: 0.03),
+              ? Colors.green.withValues(alpha: 0.12)
+              : theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.3),
           border: Border(
             bottom: BorderSide(color: theme.dividerColor),
           ),

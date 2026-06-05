@@ -181,7 +181,7 @@ class _KanbanScreenState extends State<KanbanScreen> {
         actions: [
           const RoleBadge(),
           const PingIndicator(),
-          if (_tabIndex == 0 && canCreate)
+          if (_tabIndex == 0 && store.userRole == 'root')
             IconButton(
               icon: const Icon(Icons.playlist_add),
               tooltip: 'Добавить колонку',

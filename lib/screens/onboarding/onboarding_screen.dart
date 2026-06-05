@@ -18,6 +18,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   bool _obscure = true;
 
   @override
+  void initState() {
+    super.initState();
+    final store = context.read<AppStore>();
+    if (store.userName != null && store.userName!.isNotEmpty) {
+      _nameCtrl.text = store.userName!;
+    }
+  }
+
+  @override
   void dispose() {
     _nameCtrl.dispose();
     _codeCtrl.dispose();
@@ -42,6 +51,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final settings = context.read<SettingsService>();
     final store = context.read<AppStore>();
     await store.setUserData(name, code);
+    await store.setAuthToken(code);
     await settings.completeOnboarding(name, code);
     // После notifyListeners CompanionApp перестроится и покажет MainShell
   }

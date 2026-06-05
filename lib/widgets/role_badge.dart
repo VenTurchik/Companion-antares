@@ -5,6 +5,13 @@ import '../services/app_store.dart';
 class RoleBadge extends StatelessWidget {
   const RoleBadge({super.key});
 
+  static const Map<String, String> _labels = {
+    'root': 'Владелец',
+    'admin': 'Администратор',
+    'participant': 'Участник',
+    'reader': 'Читатель',
+  };
+
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
@@ -34,7 +41,7 @@ class RoleBadge extends StatelessWidget {
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 4),
-          Text(role,
+          Text(_labels[role] ?? role,
               style: TextStyle(
                   color: color, fontSize: 11, fontWeight: FontWeight.w500)),
         ],

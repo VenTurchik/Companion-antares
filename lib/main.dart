@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
@@ -23,6 +24,8 @@ import 'services/app_store.dart';
 import 'services/tray_service.dart';
 import 'services/network_adapter.dart';
 import 'services/ping_service.dart';
+import 'services/loading_service.dart';
+import 'services/local_network_discovery.dart';
 import 'app.dart';
 
 void main() async {
@@ -62,6 +65,9 @@ void main() async {
   final timer = WorkTimerService(workRepo, taskRepo);
   await timer.init();
 
+  // === Локальное сетевое обнаружение ===
+  final localDiscovery = LocalNetworkDiscovery();
+
   runApp(
     MultiProvider(
       providers: [
@@ -70,6 +76,8 @@ void main() async {
         ChangeNotifierProvider.value(value: store),
         ChangeNotifierProvider.value(value: networkAdapter),
         ChangeNotifierProvider.value(value: pingService),
+        ChangeNotifierProvider(create: (_) => LoadingService()),
+        ChangeNotifierProvider.value(value: localDiscovery),
         Provider<TaskService>.value(value: taskService),
         Provider<MetricsService>.value(value: metricsService),
       ],
@@ -89,4 +97,15 @@ void main() async {
   await tray.init();
 
   timer.addListener(() => tray.updateTimerState(timer.isRunning));
+
+  // === Запуск сетевого обнаружения ===
+  localDiscovery.start(store.userName ?? store.userId, Platform.operatingSystem);
+
+  // === Авто-подключение к последнему серверу ===
+  if (store.lastServerUrl != null && store.lastServerUrl!.isNotEmpty && store.userName != null && store.userName!.isNotEmpty) {
+    final code = store.getServerToken(store.lastServerUrl!) ?? store.authToken;
+    if (code != null && code.isNotEmpty) {
+      networkAdapter.connect(store.lastServerUrl!, code);
+    }
+  }
 }

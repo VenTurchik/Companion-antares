@@ -60,11 +60,13 @@ class AntaresNetworkAdapter extends ChangeNotifier {
     return results;
   }
 
-  /// Подключается к POLARIS по URL.
-  Future<bool> connect(String url) async {
-    final username = _store.userId;
-    final authCode = _store.authToken;
-    if (username.isEmpty || authCode == null || authCode.isEmpty) return false;
+  /// Подключается к POLARIS по URL с указанным кодом доступа.
+  Future<bool> connect(String url, String confirmationCode) async {
+    final username = _store.userName;
+    if (username == null || username.isEmpty || confirmationCode.isEmpty) {
+      print('[NET] connect: нет имени пользователя или кода');
+      return false;
+    }
 
     _isConnecting = true;
     notifyListeners();
@@ -80,7 +82,7 @@ class AntaresNetworkAdapter extends ChangeNotifier {
         'client_name': 'Antares',
         'client_version': '0.1.0',
         'user_name': username,
-        'confirmation_code': authCode,
+        'confirmation_code': confirmationCode,
         'platform': Platform.operatingSystem,
         'device_id': _store.deviceId,
       }));
@@ -91,7 +93,12 @@ class AntaresNetworkAdapter extends ChangeNotifier {
         final data = jsonDecode(body) as Map<String, dynamic>;
         final serverName = data['server_name'] as String? ?? 'POLARIS';
         final role = data['user_role'] as String? ?? 'участник';
+        final serverUsername = data['username'] as String?;
+        if (serverUsername != null && serverUsername != _store.userName) {
+          print('[NET] Сервер вернул другое имя: $serverUsername (локальное: ${_store.userName})');
+        }
         await _store.setConnected(url, serverName, role);
+        await _store.setServerToken(url, confirmationCode);
         final token = data['session_token'] as String?;
         if (token != null) await _store.setSessionToken(token);
         _isConnecting = false;
@@ -167,9 +174,38 @@ class AntaresNetworkAdapter extends ChangeNotifier {
     return list.first as Map<String, dynamic>?;
   }
 
+  /// Получает все приглашения (активные и использованные).
+  Future<List<Map<String, dynamic>>?> getInviteCodes() async {
+    final list = await _getList('/api/v1/invitations');
+    if (list == null) return null;
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  /// Получает архивные приглашения.
+  Future<List<Map<String, dynamic>>?> getArchivedInviteCodes() async {
+    final list = await _getList('/api/v1/invitations?archived=true');
+    if (list == null) return null;
+    return list.cast<Map<String, dynamic>>();
+  }
+
   /// Создаёт новое приглашение.
   Future<Map<String, dynamic>?> createInviteCode() =>
       _post('/api/v1/invitations', {});
+
+  /// Перезапуск сервера (только root).
+  Future<bool> restartServer() async {
+    return (await _post('/api/v1/admin/restart', {})) != null;
+  }
+
+  /// Удаляет/отзывает код приглашения.
+  Future<bool> deleteInviteCode(String code) async {
+    return _delete('/api/v1/invitations/$code');
+  }
+
+  /// Выполняет polaris-cli команду (только root).
+  Future<Map<String, dynamic>?> executeCli(String command) async {
+    return _post('/api/v1/admin/cli', {'command': command});
+  }
 
   /// POST запрос (возвращает true при успехе).
   Future<bool> post(String path, Map<String, dynamic> data) async {

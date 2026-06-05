@@ -30,7 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsService>();
     final theme = Theme.of(context);
-    final canManage = context.watch<AppStore>().userRole != 'reader';
+    final canManage = context.watch<AppStore>().userRole == 'root';
 
     return Scaffold(
       appBar: AppBar(
@@ -66,19 +66,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: (v) => settings.setThemeMode(v!),
                   ),
                 ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // ---- Пользователь ----
-          _section(theme, 'Пользователь'),
-          Card(
-            child: ListTile(
-              title: TextField(
-                decoration: const InputDecoration(labelText: 'Имя'),
-                controller: TextEditingController(text: settings.username),
-                onSubmitted: (v) => settings.setUsername(v),
               ),
             ),
           ),
